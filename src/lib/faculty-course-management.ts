@@ -3,8 +3,6 @@ import { supabase } from '@/lib/supabase';
 // Function to get enrollment count for a single course (using Sanity ID)
 export async function getCourseEnrollmentCount(sanityId: string): Promise<number> {
   try {
-    console.log('🔍 Fetching enrollment count for Sanity course:', sanityId);
-
     // First get the Supabase course ID from Sanity ID
     const { data: course, error: courseError } = await supabase
       .from('courses')
@@ -13,7 +11,6 @@ export async function getCourseEnrollmentCount(sanityId: string): Promise<number
       .single();
 
     if (courseError || !course) {
-      console.log('Course not found in Supabase for Sanity ID:', sanityId);
       return 0;
     }
 
@@ -24,21 +21,11 @@ export async function getCourseEnrollmentCount(sanityId: string): Promise<number
       .eq('course_id', course.id);
 
     if (error) {
-      console.error('Error fetching enrollment count:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-        sanityId,
-        supabaseId: course.id
-      });
       return 0;
     }
 
-    console.log(`✅ Enrollment count for course ${sanityId} (${course.id}):`, count);
     return count || 0;
   } catch (error) {
-    console.error('Error in getCourseEnrollmentCount:', error);
     return 0;
   }
 }
@@ -48,8 +35,6 @@ export async function getMultipleCourseEnrollmentCounts(sanityIds: string[]): Pr
   try {
     if (sanityIds.length === 0) return {};
 
-    console.log('🔍 Fetching enrollment counts for Sanity courses:', sanityIds);
-
     // Get all Supabase course IDs from Sanity IDs
     const { data: courses, error: coursesError } = await supabase
       .from('courses')
@@ -57,16 +42,8 @@ export async function getMultipleCourseEnrollmentCounts(sanityIds: string[]): Pr
       .in('sanity_id', sanityIds);
 
     if (coursesError || !courses) {
-      console.error('Error fetching courses from Supabase:', {
-        message: coursesError?.message,
-        details: coursesError?.details,
-        hint: coursesError?.hint,
-        code: coursesError?.code
-      });
       return {};
     }
-
-    console.log('📊 Found courses in Supabase:', courses);
 
     // Create a map of sanity_id to supabase id
     const sanityToSupabaseMap = courses.reduce((map, course) => {
@@ -78,7 +55,6 @@ export async function getMultipleCourseEnrollmentCounts(sanityIds: string[]): Pr
     const supabaseCourseIds = courses.map(course => course.id);
 
     if (supabaseCourseIds.length === 0) {
-      console.log('No matching courses found in Supabase');
       return {};
     }
 
@@ -89,16 +65,8 @@ export async function getMultipleCourseEnrollmentCounts(sanityIds: string[]): Pr
       .in('course_id', supabaseCourseIds);
 
     if (error) {
-      console.error('Error fetching multiple enrollment counts:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      });
       return {};
     }
-
-    console.log('📊 Raw enrollment data:', enrollments);
 
     // Count enrollments for each Supabase course ID
     const supabaseEnrollmentCounts: Record<string, number> = {};
@@ -120,11 +88,8 @@ export async function getMultipleCourseEnrollmentCounts(sanityIds: string[]): Pr
       sanityEnrollmentCounts[sanityId] = supabaseId ? (supabaseEnrollmentCounts[supabaseId] || 0) : 0;
     });
 
-    console.log('✅ Final enrollment counts:', sanityEnrollmentCounts);
-
     return sanityEnrollmentCounts;
   } catch (error) {
-    console.error('Error in getMultipleCourseEnrollmentCounts:', error);
     return {};
   }
 }
@@ -140,13 +105,11 @@ export async function isUserEnrolledInCourse(userId: string, courseId: string): 
       .single();
 
     if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-      console.error('Error checking enrollment:', error);
       return false;
     }
 
     return !!data;
   } catch (error) {
-    console.error('Error in isUserEnrolledInCourse:', error);
     return false;
   }
 }
@@ -165,13 +128,11 @@ export async function enrollUserInCourse(userId: string, courseId: string): Prom
       ]);
 
     if (error) {
-      console.error('Error enrolling user:', error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error('Error in enrollUserInCourse:', error);
     return false;
   }
 }
@@ -185,13 +146,11 @@ export async function getUserEnrolledCourses(userId: string): Promise<string[]> 
       .eq('user_id', userId);
 
     if (error) {
-      console.error('Error fetching user enrollments:', error);
       return [];
     }
 
     return data?.map(enrollment => enrollment.course_id) || [];
   } catch (error) {
-    console.error('Error in getUserEnrolledCourses:', error);
     return [];
   }
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { getCourseBySlug, getCourseById } from '@/sanity/lib/queries';
 import { getCourseProgress } from '@/lib/course-management';
 import EnhancedCourseNav from '@/components/learn/enhanced-course-nav';
@@ -82,6 +82,7 @@ interface CourseData {
 
 export default function LearnPage() {
   const params = useParams();
+  const router = useRouter();
   const courseId = params.courseId as string;
   
   const [course, setCourse] = useState<CourseData | null>(null);
@@ -96,6 +97,9 @@ export default function LearnPage() {
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
   const [sanityCourseid, setSanityCourseId] = useState<string | null>(null);
+  const [canNavigatePrevious, setCanNavigatePrevious] = useState(false);
+  const [canNavigateNext, setCanNavigateNext] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   // Use the progress hook
   const { 
@@ -110,6 +114,20 @@ export default function LearnPage() {
       try {
         setLoading(true);
         
+        // First check if user is authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.user) {
+          // Redirect to auth page if not logged in
+          router.push('/auth');
+          return;
+        }
+        
+        const currentUser = session.user;
+        const accessToken = session.access_token;
+        
+        setUser(currentUser);
+        
         // First check if courseId is a Supabase course ID
         const { data: supabaseCourse, error: supabaseError } = await supabase
           .from('courses')
@@ -118,21 +136,24 @@ export default function LearnPage() {
           .single();
 
         let courseData = null;
+        let sanityId = courseId;
 
         if (supabaseError || !supabaseCourse) {
           // Try using courseId as sanity_id directly
           try {
             courseData = await getCourseById(courseId);
+            sanityId = courseId;
           } catch {
             // If that fails, try as slug
             try {
               courseData = await getCourseBySlug(courseId);
+              sanityId = courseData?._id || courseId;
             } catch {
-              console.log('Course not found with ID or slug:', courseId);
             }
           }
         } else {
           // Fetch from Sanity using sanity_id
+          sanityId = supabaseCourse.sanity_id;
           try {
             courseData = await getCourseById(supabaseCourse.sanity_id);
           } catch {
@@ -147,24 +168,92 @@ export default function LearnPage() {
           setError('Course not found or not accessible');
           return;
         }
+        
+        // Check if the course is free (price = 0) or user is enrolled
+        const coursePrice = courseData.price || 0;
+        
+        if (coursePrice > 0) {
+          // Paid course - check enrollment via server API (bypasses RLS)
+          const checkResponse = await fetch(`/api/enroll?courseSanityId=${courseData._id}`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+          const checkData = await checkResponse.json();
+          
+          if (!checkData.enrolled) {
+            // User not enrolled - redirect to course page
+            setAccessDenied(true);
+            setError('You need to enroll in this course to access the content.');
+            setTimeout(() => {
+              router.push(`/courses/${courseData.slug?.current || courseId}`);
+            }, 2000);
+            return;
+          }
+        }
           
         setCourse(courseData);
         setSanityCourseId(courseData._id);
         
-        // Fetch user and course progress
+        // Fetch course progress
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          setUser(user);
-          
-          if (user) {
-            const progress = await getCourseProgress(user.id, courseData._id);
-            console.log('Course progress:', progress);
+          if (currentUser) {
+            const progress = await getCourseProgress(currentUser.id, courseData._id);
           }
         } catch (progressError) {
-          console.warn('Failed to fetch user or course progress:', progressError);
         }
         
-        // Set first lecture as current
+        // Restore previous content state from localStorage if available
+        const savedState = localStorage.getItem(`course_${courseData._id}_state`);
+        if (savedState) {
+          try {
+            const state = JSON.parse(savedState);
+            setContentType(state.contentType);
+            
+            // Find and set the saved content item
+            if (state.contentType === 'lecture' && state.itemId) {
+              for (const section of courseData.sections) {
+                const lecture = section.lectures?.find((l: LectureData) => l._id === state.itemId);
+                if (lecture) {
+                  setCurrentLecture(lecture);
+                  setCurrentSection(section);
+                  return;
+                }
+              }
+            } else if (state.contentType === 'module' && state.itemId) {
+              for (const section of courseData.sections) {
+                const module = section.modules?.find((m: ModuleData) => m._id === state.itemId);
+                if (module) {
+                  setCurrentModule(module);
+                  setCurrentSection(section);
+                  return;
+                }
+              }
+            } else if (state.contentType === 'assignment' && state.itemId) {
+              for (const section of courseData.sections) {
+                const assignment = section.assignments?.find((a: AssignmentData) => a._id === state.itemId);
+                if (assignment) {
+                  setCurrentAssignment(assignment);
+                  setCurrentSection(section);
+                  return;
+                }
+              }
+            } else if (state.contentType === 'quiz' && state.itemId) {
+              for (const section of courseData.sections) {
+                const quiz = section.quizzes?.find((q: QuizData) => q._id === state.itemId);
+                if (quiz) {
+                  setCurrentQuiz(quiz);
+                  setCurrentSection(section);
+                  return;
+                }
+              }
+            }
+          } catch (e) {
+            // Failed to restore state
+          }
+        }
+        
+        // Set first lecture as current if no saved state
         if (courseData.sections && courseData.sections.length > 0) {
           const firstSection = courseData.sections[0];
           setCurrentSection(firstSection);
@@ -174,7 +263,6 @@ export default function LearnPage() {
           }
         }
       } catch (err) {
-        console.error('Error fetching course:', err);
         setError('Failed to load course. Please try again later.');
       } finally {
         setLoading(false);
@@ -185,6 +273,80 @@ export default function LearnPage() {
       fetchCourseData();
     }
   }, [courseId]);
+  
+  // Calculate navigation state
+  useEffect(() => {
+    if (!course || !course.sections) return;
+    
+    interface ContentItem {
+      type: 'lecture' | 'module' | 'assignment' | 'quiz';
+      data: LectureData | ModuleData | AssignmentData | QuizData;
+      section: SectionData;
+    }
+
+    const allContent: ContentItem[] = [];
+    
+    course.sections.forEach(section => {
+      const sectionContent: ContentItem[] = [];
+      
+      if (section.lectures) {
+        section.lectures.forEach(lecture => {
+          sectionContent.push({ type: 'lecture', data: lecture, section });
+        });
+      }
+      
+      if (section.modules) {
+        section.modules.forEach(module => {
+          sectionContent.push({ type: 'module', data: module, section });
+        });
+      }
+      
+      if (section.assignments) {
+        section.assignments.forEach(assignment => {
+          sectionContent.push({ type: 'assignment', data: assignment, section });
+        });
+      }
+      
+      if (section.quizzes) {
+        section.quizzes.forEach(quiz => {
+          sectionContent.push({ type: 'quiz', data: quiz, section });
+        });
+      }
+      
+      sectionContent.sort((a, b) => {
+        const orderA = 'order' in a.data ? a.data.order : 0;
+        const orderB = 'order' in b.data ? b.data.order : 0;
+        return orderA - orderB;
+      });
+      
+      allContent.push(...sectionContent);
+    });
+
+    // Find current item index
+    let currentIndex = -1;
+    
+    if (currentLecture) {
+      currentIndex = allContent.findIndex(item => 
+        item.type === 'lecture' && item.data._id === currentLecture._id
+      );
+    } else if (currentModule) {
+      currentIndex = allContent.findIndex(item => 
+        item.type === 'module' && item.data._id === currentModule._id
+      );
+    } else if (currentAssignment) {
+      currentIndex = allContent.findIndex(item => 
+        item.type === 'assignment' && item.data._id === currentAssignment._id
+      );
+    } else if (currentQuiz) {
+      currentIndex = allContent.findIndex(item => 
+        item.type === 'quiz' && item.data._id === currentQuiz._id
+      );
+    }
+
+    // Update navigation state
+    setCanNavigatePrevious(currentIndex > 0);
+    setCanNavigateNext(currentIndex >= 0 && currentIndex < allContent.length - 1);
+  }, [course, currentLecture, currentModule, currentAssignment, currentQuiz]);
   const handleLectureSelect = (lecture: LectureData, section: SectionData) => {
     setCurrentLecture(lecture);
     setCurrentSection(section);
@@ -192,6 +354,13 @@ export default function LearnPage() {
     setCurrentAssignment(null);
     setCurrentQuiz(null);
     setContentType('lecture');
+    // Save state
+    if (course) {
+      localStorage.setItem(`course_${course._id}_state`, JSON.stringify({
+        contentType: 'lecture',
+        itemId: lecture._id
+      }));
+    }
   };
 
   const handleModuleView = (module: ModuleData) => {
@@ -200,6 +369,13 @@ export default function LearnPage() {
     setCurrentAssignment(null);
     setCurrentQuiz(null);
     setContentType('module');
+    // Save state
+    if (course) {
+      localStorage.setItem(`course_${course._id}_state`, JSON.stringify({
+        contentType: 'module',
+        itemId: module._id
+      }));
+    }
   };
 
   const handleAssignmentView = (assignment: AssignmentData) => {
@@ -208,6 +384,13 @@ export default function LearnPage() {
     setCurrentModule(null);
     setCurrentQuiz(null);
     setContentType('assignment');
+    // Save state
+    if (course) {
+      localStorage.setItem(`course_${course._id}_state`, JSON.stringify({
+        contentType: 'assignment',
+        itemId: assignment._id
+      }));
+    }
   };
 
   const handleQuizAttempt = (quiz: QuizData) => {
@@ -216,6 +399,13 @@ export default function LearnPage() {
     setCurrentModule(null);
     setCurrentAssignment(null);
     setContentType('quiz');
+    // Save state
+    if (course) {
+      localStorage.setItem(`course_${course._id}_state`, JSON.stringify({
+        contentType: 'quiz',
+        itemId: quiz._id
+      }));
+    }
   };
 
   const handleDrawerToggle = (isOpen: boolean) => {
@@ -223,7 +413,7 @@ export default function LearnPage() {
   };
 
   const navigateToLecture = (direction: 'previous' | 'next') => {
-    if (!course) return;
+    if (!course || !course.sections) return;
 
     // Build complete ordered list of all content items
     interface ContentItem {
@@ -297,6 +487,7 @@ export default function LearnPage() {
       );
     }
 
+
     if (currentIndex === -1) return;
 
     // Navigate to next/previous item
@@ -322,28 +513,128 @@ export default function LearnPage() {
       case 'lecture':
         setCurrentLecture(targetItem.data as LectureData);
         setContentType('lecture');
+        if (course) {
+          localStorage.setItem(`course_${course._id}_state`, JSON.stringify({
+            contentType: 'lecture',
+            itemId: (targetItem.data as LectureData)._id
+          }));
+        }
         break;
       case 'module':
         setCurrentModule(targetItem.data as ModuleData);
         setContentType('module');
+        if (course) {
+          localStorage.setItem(`course_${course._id}_state`, JSON.stringify({
+            contentType: 'module',
+            itemId: (targetItem.data as ModuleData)._id
+          }));
+        }
         break;
       case 'assignment':
         setCurrentAssignment(targetItem.data as AssignmentData);
         setContentType('assignment');
+        if (course) {
+          localStorage.setItem(`course_${course._id}_state`, JSON.stringify({
+            contentType: 'assignment',
+            itemId: (targetItem.data as AssignmentData)._id
+          }));
+        }
         break;
       case 'quiz':
         setCurrentQuiz(targetItem.data as QuizData);
         setContentType('quiz');
+        if (course) {
+          localStorage.setItem(`course_${course._id}_state`, JSON.stringify({
+            contentType: 'quiz',
+            itemId: (targetItem.data as QuizData)._id
+          }));
+        }
         break;
     }
   };
 
+  // Calculate navigation state
+  useEffect(() => {
+    if (!course || !course.sections) return;
+    
+    interface ContentItem {
+      type: 'lecture' | 'module' | 'assignment' | 'quiz';
+      data: LectureData | ModuleData | AssignmentData | QuizData;
+      section: SectionData;
+    }
+
+    const allContent: ContentItem[] = [];
+    
+    course.sections.forEach(section => {
+      const sectionContent: ContentItem[] = [];
+      
+      if (section.lectures) {
+        section.lectures.forEach(lecture => {
+          sectionContent.push({ type: 'lecture', data: lecture, section });
+        });
+      }
+      
+      if (section.modules) {
+        section.modules.forEach(module => {
+          sectionContent.push({ type: 'module', data: module, section });
+        });
+      }
+      
+      if (section.assignments) {
+        section.assignments.forEach(assignment => {
+          sectionContent.push({ type: 'assignment', data: assignment, section });
+        });
+      }
+      
+      if (section.quizzes) {
+        section.quizzes.forEach(quiz => {
+          sectionContent.push({ type: 'quiz', data: quiz, section });
+        });
+      }
+      
+      sectionContent.sort((a, b) => {
+        const orderA = 'order' in a.data ? a.data.order : 0;
+        const orderB = 'order' in b.data ? b.data.order : 0;
+        return orderA - orderB;
+      });
+      
+      allContent.push(...sectionContent);
+    });
+
+    // Find current item index
+    let currentIndex = -1;
+    
+    if (currentLecture) {
+      currentIndex = allContent.findIndex(item => 
+        item.type === 'lecture' && item.data._id === currentLecture._id
+      );
+    } else if (currentModule) {
+      currentIndex = allContent.findIndex(item => 
+        item.type === 'module' && item.data._id === currentModule._id
+      );
+    } else if (currentAssignment) {
+      currentIndex = allContent.findIndex(item => 
+        item.type === 'assignment' && item.data._id === currentAssignment._id
+      );
+    } else if (currentQuiz) {
+      currentIndex = allContent.findIndex(item => 
+        item.type === 'quiz' && item.data._id === currentQuiz._id
+      );
+    }
+
+    // Update navigation state
+    setCanNavigatePrevious(currentIndex > 0);
+    setCanNavigateNext(currentIndex >= 0 && currentIndex < allContent.length - 1);
+  }, [course, currentLecture, currentModule, currentAssignment, currentQuiz]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-white"></div>
-          <p className="text-white mt-4">Loading course...</p>
+        <div className="text-center space-y-4">
+          <div className="inline-block">
+            <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <p className="text-white text-sm">Loading course...</p>
         </div>
       </div>
     );
@@ -352,9 +643,24 @@ export default function LearnPage() {
   if (error || !course) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold text-red-400 mb-2">Course Not Found</h3>
-          <p className="text-red-300">{error || 'The requested course could not be found.'}</p>
+        <div className="text-center max-w-md mx-auto px-4">
+          {accessDenied ? (
+            <>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                <svg className="w-8 h-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">Enrollment Required</h3>
+              <p className="text-gray-400 mb-4">{error || 'You need to enroll in this course to access the content.'}</p>
+              <p className="text-gray-500 text-sm">Redirecting to course page...</p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-lg font-semibold text-red-400 mb-2">Course Not Found</h3>
+              <p className="text-red-300">{error || 'The requested course could not be found.'}</p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -366,6 +672,9 @@ export default function LearnPage() {
       <EnhancedCourseNav
         course={course}
         currentLecture={currentLecture}
+        currentModule={currentModule}
+        currentAssignment={currentAssignment}
+        currentQuiz={currentQuiz}
         user={user}
         onLectureSelect={handleLectureSelect}
         onNavigate={navigateToLecture}
@@ -376,6 +685,8 @@ export default function LearnPage() {
         progress={progress}
         markComplete={markComplete}
         isItemCompleted={isItemCompleted}
+        canNavigatePrevious={canNavigatePrevious}
+        canNavigateNext={canNavigateNext}
       />
       {/* Main Content with dynamic margin based on drawer state */}
       <div 
@@ -420,7 +731,7 @@ export default function LearnPage() {
                   ) : (
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-3">Lecture Discussion</h3>
-                      <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+                      <div className="bg-gray-900 border border-gray-700 p-6">
                         <p className="text-gray-400 text-center text-sm">
                           Please log in to participate in the discussion.
                         </p>
@@ -451,6 +762,7 @@ export default function LearnPage() {
               <QuizContent 
                 quiz={currentQuiz} 
                 courseId={course._id}
+                courseName={course.title}
                 userId={user?.id}
               />
             </div>

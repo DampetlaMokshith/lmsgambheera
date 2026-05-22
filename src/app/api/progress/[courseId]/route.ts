@@ -113,7 +113,6 @@ export async function GET(
       .order("completed_at", { ascending: false });
 
     if (completionsError && completionsError.code !== 'PGRST116') {
-      console.error("Error fetching completions:", completionsError);
     }
 
     const completedItems: Array<{ item_id: string; item_type: string; completed_at: string }> = completions || [];
@@ -167,7 +166,6 @@ export async function GET(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Error fetching progress:", error);
     return NextResponse.json(
       { error: "Failed to fetch progress data" },
       { status: 500 }

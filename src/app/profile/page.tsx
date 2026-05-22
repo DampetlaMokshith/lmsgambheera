@@ -6,12 +6,37 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import Image from 'next/image';
 import { useTimeBasedBackground } from '@/hooks/useTimeBasedBackground';
-import { Save, User, Check } from 'lucide-react';
+import { Save, User, Calendar as CalendarIcon, Info } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
+import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+} from '@/components/ui/avatar';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast, Toaster } from 'sonner';
 import { format } from 'date-fns';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { cn } from '@/lib/utils';
 
 interface UserProfile {
   gender?: 'male' | 'female';
@@ -23,7 +48,12 @@ interface UserProfile {
   full_name?: string;
   guardian_email?: string;
   date_of_birth?: string;
+  selected_avatar?: string;
 }
+
+// Avatar options
+const GIRL_AVATARS = ['bit5.svg', 'bit2.svg', 'bit3.svg', 'bit4.svg', 'bit1.svg', 'bitmoji_girl.png'];
+const BOY_AVATARS = ['bit6.svg', 'bit7.svg', 'bit8.svg', 'bit9.svg', 'bit10.svg', 'bitmoji_boy.png'];
 
 export default function ProfilePage() {
   const { backgroundImage } = useTimeBasedBackground();
@@ -33,6 +63,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [savingDate, setSavingDate] = useState(false);
+  const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
 
   const fetchUserData = useCallback(async () => {
     try {
@@ -53,12 +85,15 @@ export default function ProfilePage() {
         .single();
       
       if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
-        console.error('Error fetching profile:', error);
+        // Error fetching profile
       }
       
       // Fallback to metadata if no database profile exists
       const metadata = session.user.user_metadata;
       const cachedGender = localStorage.getItem(`user-gender-${session.user.id}`) as 'male' | 'female' | null;
+      
+      // Load selected avatar from localStorage
+      const savedAvatar = localStorage.getItem(`user-avatar-${session.user.id}`);
       
       setUserProfile({
         gender: profileData?.gender || cachedGender || metadata?.gender || undefined,
@@ -70,6 +105,7 @@ export default function ProfilePage() {
         batch: profileData?.batch || '',
         degree: profileData?.degree || '',
         department: profileData?.department || '',
+        selected_avatar: savedAvatar || undefined,
       });
       
       // Set selectedDate if date_of_birth exists
@@ -77,7 +113,6 @@ export default function ProfilePage() {
         setSelectedDate(new Date(profileData.date_of_birth));
       }
     } catch (error) {
-      console.error('Error fetching user data:', error);
       router.push('/auth');
     } finally {
       setLoading(false);
@@ -89,6 +124,12 @@ export default function ProfilePage() {
   }, [fetchUserData]);
 
   const getAvatarImage = () => {
+    // If user has selected a custom avatar, use it
+    if (userProfile.selected_avatar) {
+      return `/${userProfile.selected_avatar}`;
+    }
+    
+    // Otherwise use default based on gender
     if (userProfile.gender === 'male') {
       return '/bitmoji_boy.png';
     } else if (userProfile.gender === 'female') {
@@ -97,14 +138,33 @@ export default function ProfilePage() {
     return null;
   };
 
+  const handleAvatarSelect = async (avatar: string) => {
+    try {
+      if (user) {
+        // Update local state immediately
+        setUserProfile(prev => ({ ...prev, selected_avatar: avatar }));
+        
+        // Save to localStorage only
+        localStorage.setItem(`user-avatar-${user.id}`, avatar);
+        
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new CustomEvent('avatarUpdated', { detail: { userId: user.id, avatar } }));
+        
+        toast.success('Avatar updated successfully!');
+      }
+    } catch (error) {
+      toast.error('Failed to update avatar');
+    } finally {
+      setIsAvatarDialogOpen(false);
+    }
+  };
+
   const handleDateSubmit = async () => {
     if (selectedDate) {
+      setSavingDate(true);
       const formattedDate = format(selectedDate, 'yyyy-MM-dd');
       
       try {
-        // Update profile with selected date
-        await handleInputChange('date_of_birth', formattedDate);
-        
         // Save to database immediately
         if (user) {
           const { error } = await supabase
@@ -117,7 +177,6 @@ export default function ProfilePage() {
             });
           
           if (error) {
-            console.error('Error saving date of birth:', error);
             toast.error('Failed to save date of birth');
           } else {
             toast.success('Date of birth saved successfully!');
@@ -126,8 +185,9 @@ export default function ProfilePage() {
           }
         }
       } catch (error) {
-        console.error('Error submitting date:', error);
         toast.error('Failed to save date of birth');
+      } finally {
+        setSavingDate(false);
       }
     }
   };
@@ -141,6 +201,14 @@ export default function ProfilePage() {
     localStorage.setItem(`user-gender-${user?.id}`, gender);
   };
 
+  const handleDegreeChange = (degree: string) => {
+    setUserProfile(prev => ({ ...prev, degree }));
+  };
+
+  const handleDepartmentChange = (department: string) => {
+    setUserProfile(prev => ({ ...prev, department }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -150,7 +218,7 @@ export default function ProfilePage() {
           localStorage.setItem(`user-gender-${user.id}`, userProfile.gender);
         }
         
-        // Prepare data for database
+        // Prepare data for database (excluding selected_avatar - stored locally)
         const profileData = {
           user_id: user.id,
           full_name: userProfile.full_name,
@@ -175,7 +243,27 @@ export default function ProfilePage() {
           throw error;
         }
         
-        console.log('Profile saved to database:', profileData);
+        // Check if profile is now complete and delete incomplete notification
+        const requiredFields = [
+          'full_name',
+          'gender',
+          'guardian_email',
+          'date_of_birth',
+          'registration_number',
+          'college',
+          'batch',
+          'degree',
+          'department'
+        ];
+
+        const isComplete = requiredFields.every(field => {
+          const value = profileData[field as keyof typeof profileData];
+          return value && value !== '' && value !== null;
+        });
+
+        if (isComplete) {
+          // Profile is complete - notification system will automatically update
+        }
         
         // Show success toast
         toast.success('Profile updated successfully!', {
@@ -184,7 +272,6 @@ export default function ProfilePage() {
         });
       }
     } catch (error) {
-      console.error('Error saving profile:', error);
       toast.error('Failed to save profile', {
         description: 'Please try again later.',
         duration: 4000,
@@ -199,7 +286,7 @@ export default function ProfilePage() {
       <DashboardLayout title="Profile">
         <div className="space-y-6">
           {/* Profile Header Skeleton */}
-          <div className="bg-black border rounded-xl overflow-hidden shadow-lg">
+          <div className="bg-black border overflow-hidden shadow-lg">
             {/* Cover Image Skeleton */}
             <div className="h-32 sm:h-40 md:h-48 bg-accent animate-pulse"></div>
             
@@ -219,7 +306,7 @@ export default function ProfilePage() {
                 
                 {/* Save Button Skeleton */}
                 <div className="sm:pb-0">
-                  <div className="h-10 bg-accent rounded-lg animate-pulse w-32"></div>
+                  <div className="h-10 bg-accent animate-pulse w-32"></div>
                 </div>
               </div>
             </div>
@@ -228,26 +315,26 @@ export default function ProfilePage() {
           {/* Forms Skeleton */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Personal Details Skeleton */}
-            <div className="bg-black border rounded-xl p-6">
+            <div className="bg-black border p-6">
               <div className="h-6 bg-accent rounded animate-pulse w-32 mb-6"></div>
               <div className="space-y-4">
                 {[...Array(5)].map((_, i) => (
                   <div key={i} className="space-y-2">
                     <div className="h-4 bg-accent rounded animate-pulse w-24"></div>
-                    <div className="h-10 bg-accent border border-gray-700 rounded-lg animate-pulse"></div>
+                    <div className="h-10 bg-accent border border-gray-700 animate-pulse"></div>
                   </div>
                 ))}
               </div>
             </div>
             
             {/* Academic Details Skeleton */}
-            <div className="bg-black border rounded-xl p-6">
+            <div className="bg-black border p-6">
               <div className="h-6 bg-accent rounded animate-pulse w-32 mb-6"></div>
               <div className="space-y-4">
                 {[...Array(5)].map((_, i) => (
                   <div key={i} className="space-y-2">
                     <div className="h-4 bg-accent rounded animate-pulse w-24"></div>
-                    <div className="h-10 bg-accent border border-gray-700 rounded-lg animate-pulse"></div>
+                    <div className="h-10 bg-accent border border-gray-700 animate-pulse"></div>
                   </div>
                 ))}
               </div>
@@ -259,10 +346,25 @@ export default function ProfilePage() {
   }
 
   return (
-    <DashboardLayout title="Profile">
+    <DashboardLayout title="">
+      {/* Fixed Header with Profile Title and Save Button */}
+      <div className="sticky top-0 z-10 bg-black  px-6 py-4 mb-6 -mx-6 -mt-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-white">Profile</h1>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2 bg-white text-black hover:bg-gray-200 transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+
       <div className="space-y-6">
         {/* Profile Header with Cover and Avatar */}
-        <div className="bg-black border rounded-xl overflow-hidden shadow-lg">
+        <div className="bg-black border overflow-hidden shadow-lg">
           {/* Cover Image */}
           <div 
             className="relative h-32 sm:h-40 md:h-48 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500"
@@ -274,6 +376,27 @@ export default function ProfilePage() {
             }}
           >
             <div className="absolute bg-black bg-opacity-20"></div>
+            
+            {/* Info Icon with Tooltip */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="absolute top-4 right-4 p-2 bg-black/40 hover:bg-black/60 rounded-full transition-colors backdrop-blur-sm">
+                    <Info className="w-5 h-5 text-white" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="max-w-xs" showArrow={true}>
+                  <p className="text-sm">
+                    This image is a fixed image by us and changes according to IST time.
+                    <br /><br />
+                    <strong>Timings:</strong><br />
+                    • 5:00 AM - 12:00 PM: Morning theme<br />
+                    • 12:00 PM - 5:00 PM: Afternoon theme<br />
+                    • 5:00 PM - 5:00 AM: Evening/Night theme
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
 
           {/* Profile Avatar and Basic Info */}
@@ -305,18 +428,66 @@ export default function ProfilePage() {
                 </h1>
                 <p className="text-gray-300 text-sm">{user?.email}</p>
               </div>
-
-              {/* Save Button */}
-              <div className="sm:pb-0">
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full sm:w-auto px-6 py-2 bg-black border-3 text-white rounded-lg hover:bg-accent hover:text-white transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4" />
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
+              
+              {/* Avatar Selection Button - Top Right Corner */}
+              <Dialog open={isAvatarDialogOpen} onOpenChange={setIsAvatarDialogOpen}>
+                <DialogTrigger asChild>
+                  <button className="flex -space-x-3 hover:opacity-80 transition-opacity p-2 hover:bg-white/5">
+                    {(userProfile.gender === 'female' ? GIRL_AVATARS : BOY_AVATARS).slice(0, 4).map((avatar, i) => (
+                      <Avatar key={i} className="w-12 h-12 border-2 border-black">
+                        <AvatarImage src={`/${avatar}`} alt={`Avatar ${i + 1}`} />
+                        <AvatarFallback>A{i + 1}</AvatarFallback>
+                      </Avatar>
+                    ))}
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="bg-black border sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">Choose Your Avatar</DialogTitle>
+                    <DialogDescription className="text-gray-400">
+                      Select an avatar that represents you best
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="grid grid-cols-4 gap-6 py-6">
+                    {userProfile.gender === 'female' ? (
+                      // Girl avatars
+                      GIRL_AVATARS.map((avatar) => (
+                        <button
+                          key={avatar}
+                          className="aspect-square rounded-full border-2 border-gray-700 hover:border-white transition-colors p-3 bg-accent overflow-hidden cursor-pointer"
+                          onClick={() => handleAvatarSelect(avatar)}
+                        >
+                          <Image
+                            src={`/${avatar}`}
+                            alt={avatar}
+                            width={100}
+                            height={100}
+                            className="w-full h-full object-contain"
+                          />
+                        </button>
+                      ))
+                    ) : (
+                      // Boy avatars
+                      BOY_AVATARS.map((avatar) => (
+                        <button
+                          key={avatar}
+                          className="aspect-square rounded-full border-2 border-gray-700 hover:border-white transition-colors p-3 bg-accent overflow-hidden cursor-pointer"
+                          onClick={() => handleAvatarSelect(avatar)}
+                        >
+                          <Image
+                            src={`/${avatar}`}
+                            alt={avatar}
+                            width={100}
+                            height={100}
+                            className="w-full h-full object-contain"
+                          />
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>
@@ -324,7 +495,7 @@ export default function ProfilePage() {
         {/* Editable Forms */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Personal Details Card */}
-          <div className="bg-black border rounded-xl p-6">
+          <div className="bg-black border p-6">
             <h2 className="text-xl font-bold text-white mb-6">Personal Details</h2>
             <div className="space-y-4">
               <div>
@@ -335,7 +506,7 @@ export default function ProfilePage() {
                   type="text"
                   value={userProfile.full_name || ''}
                   onChange={(e) => handleInputChange('full_name', e.target.value)}
-                  className="w-full px-3 py-2 bg-accent border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white"
+                  className="w-full px-3 py-2 bg-accent border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-white hover:bg-accent/80 hover:border-gray-600 transition-colors"
                   placeholder="Enter your full name"
                 />
               </div>
@@ -348,7 +519,7 @@ export default function ProfilePage() {
                   type="email"
                   value={user?.email || ''}
                   disabled
-                  className="w-full px-3 py-2 bg-accent border border-gray-600 rounded-lg text-gray-400 cursor-not-allowed"
+                  className="w-full px-3 py-2 bg-accent border border-gray-600 text-gray-400 cursor-not-allowed"
                 />
               </div>
 
@@ -359,20 +530,20 @@ export default function ProfilePage() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleGenderChange('male')}
-                    className={`flex-1 px-4 py-2 cursor-pointer rounded-lg border transition-colors ${
+                    className={`flex-1 px-4 py-2 cursor-pointer border transition-colors ${
                       userProfile.gender === 'male'
                         ? 'border-white bg-accent text-white'
-                        : 'border-gray-500 bg-accent text-white hover:bg-accent/50'
+                        : 'border-gray-700 bg-accent text-white hover:bg-accent/80 hover:border-gray-600'
                     }`}
                   >
                     Male
                   </button>
                   <button
                     onClick={() => handleGenderChange('female')}
-                    className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
+                    className={`flex-1 px-4 py-2 border transition-colors cursor-pointer ${
                       userProfile.gender === 'female'
                         ? 'border-white bg-accent text-white'
-                        : 'border-gray-500 bg-accent text-gray-300 hover:bg-accent/50'
+                        : 'border-gray-700 bg-accent text-white hover:bg-accent/80 hover:border-gray-600'
                     }`}
                   >
                     Female
@@ -388,7 +559,7 @@ export default function ProfilePage() {
                   type="email"
                   value={userProfile.guardian_email || ''}
                   onChange={(e) => handleInputChange('guardian_email', e.target.value)}
-                  className="w-full px-3 py-2 bg-accent border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white"
+                  className="w-full px-3 py-2 bg-popover border border-gray-800 text-white  hover:bg-accent/10 hover:border-gray-100 transition-colors"
                   placeholder="Enter guardian's email"
                 />
               </div>
@@ -397,52 +568,50 @@ export default function ProfilePage() {
                 <label className="block text-white text-sm font-medium mb-2">
                   Date of Birth
                 </label>
-                <div className="space-y-4">
-                  {/* Display current date if set */}
-                  {userProfile.date_of_birth && (
-                    <div className="text-white text-sm bg-accent px-3 py-2 rounded-lg border border-gray-700">
-                      Selected: {format(new Date(userProfile.date_of_birth), 'PP')}
-                    </div>
-                  )}
-                  
-                  {/* Calendar Component */}
-                  <div className="bg-black border rounded-lg p-4">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={setSelectedDate}
-                      disabled={(date) =>
-                        date > new Date() || date < new Date("1900-01-01")
-                      }
-                      className="rounded-lg bg-accent text-white"
-                      captionLayout="dropdown"
-                    />
-                    
-                    {/* Submit Button */}
-                    {selectedDate && (
-                      <div className="mt-4 pt-4 border-t border-gray-700">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-400">
-                            Selected: {format(selectedDate, 'PP')}
-                          </span>
-                          <Button
-                            onClick={handleDateSubmit}
-                            className="bg-white text-black hover:bg-gray-200 px-4 py-2 rounded-lg"
-                          >
-                            <Check className="w-4 h-4 mr-2" />
-                            Submit Date
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                <div className="flex gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "flex-1 justify-start text-left font-normal bg-accent border-gray-700 text-white hover:bg-accent/80 hover:border-gray-600 transition-colors",
+                          !selectedDate && "text-gray-400"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedDate ? format(selectedDate, "dd/MM/yyyy") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-black border">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={setSelectedDate}
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("1900-01-01")
+                        }
+                        className="bg-black text-white"
+                        captionLayout="dropdown"
+                        fromYear={1900}
+                        toYear={new Date().getFullYear()}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Button
+                    onClick={handleDateSubmit}
+                    disabled={!selectedDate || savingDate}
+                    className="px-4 py-2 bg-white text-black hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Academic Details Card */}
-          <div className="bg-black border rounded-xl p-6">
+          <div className="bg-black border p-6">
             <h2 className="text-xl font-bold text-white mb-6">Academic Details</h2>
             <div className="space-y-4">
               <div>
@@ -453,7 +622,7 @@ export default function ProfilePage() {
                   type="text"
                   value={userProfile.registration_number || ''}
                   onChange={(e) => handleInputChange('registration_number', e.target.value)}
-                  className="w-full px-3 py-2 bg-accent border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white"
+                  className="w-full px-3 py-2 bg-accent border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-white hover:bg-accent/80 hover:border-gray-600 transition-colors"
                   placeholder="Enter registration number"
                 />
               </div>
@@ -466,7 +635,7 @@ export default function ProfilePage() {
                   type="text"
                   value={userProfile.college || ''}
                   onChange={(e) => handleInputChange('college', e.target.value)}
-                  className="w-full px-3 py-2 bg-accent border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white"
+                  className="w-full px-3 py-2 bg-accent border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-white hover:bg-accent/80 hover:border-gray-600 transition-colors"
                   placeholder="Enter college name"
                 />
               </div>
@@ -479,7 +648,7 @@ export default function ProfilePage() {
                   type="text"
                   value={userProfile.batch || ''}
                   onChange={(e) => handleInputChange('batch', e.target.value)}
-                  className="w-full px-3 py-2 bg-accent border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white"
+                  className="w-full px-3 py-2 bg-accent border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-white hover:bg-accent/80 hover:border-gray-600 transition-colors"
                   placeholder="Enter batch"
                 />
               </div>
@@ -488,44 +657,47 @@ export default function ProfilePage() {
                 <label className="block text-white text-sm font-medium mb-2">
                   Degree
                 </label>
-                <input
-                  type="text"
-                  value={userProfile.degree || ''}
-                  onChange={(e) => handleInputChange('degree', e.target.value)}
-                  className="w-full px-3 py-2 bg-accent border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white"
-                  placeholder="Enter degree"
-                />
+                <div className="flex gap-2">
+                  {['btech', 'mtech', 'mba'].map((degree) => (
+                    <button
+                      key={degree}
+                      onClick={() => handleDegreeChange(degree)}
+                      className={`flex-1 px-4 py-2 border transition-colors ${
+                        userProfile.degree === degree
+                          ? 'border-white bg-accent text-white'
+                          : 'border-gray-700 bg-accent text-white hover:bg-accent/80 hover:border-gray-600'
+                      }`}
+                    >
+                      {degree}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
                 <label className="block text-white text-sm font-medium mb-2">
                   Department
                 </label>
-                <input
-                  type="text"
-                  value={userProfile.department || ''}
-                  onChange={(e) => handleInputChange('department', e.target.value)}
-                  className="w-full px-3 py-2 bg-accent border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white"
-                  placeholder="Enter department"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  {['cse', 'mech', 'civil', 'ece'].map((dept) => (
+                    <button
+                      key={dept}
+                      onClick={() => handleDepartmentChange(dept)}
+                      className={`px-4 py-2 border transition-colors ${
+                        userProfile.department === dept
+                          ? 'border-white bg-accent text-white'
+                          : 'border-gray-700 bg-accent text-white hover:bg-accent/80 hover:border-gray-600'
+                      }`}
+                    >
+                      {dept}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <Toaster 
-        position="bottom-right"
-        theme="light"
-        toastOptions={{
-          style: {
-            background: 'white',
-            color: 'black',
-            border: '1px solid #374151',
-          },
-          className: 'bg-black text-white border-gray-700',
-        }}
-        closeButton
-      />
     </DashboardLayout>
   );
 }

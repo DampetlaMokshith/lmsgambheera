@@ -1,14 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, Users, Clock, Play, BookOpen, CheckCircle, X, Calendar, Globe, Subtitles, MinusIcon, PlusIcon } from 'lucide-react';
+import { Star, Users, Clock, Play, BookOpen, CheckCircle, Calendar, Globe, Subtitles, MinusIcon, PlusIcon, ArrowLeft } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import Image from 'next/image';
-import { getCourseBySlug, getRelatedCourses } from '@/sanity/lib/queries';
-import { enrollUserInCourseBySanityId, checkUserEnrollmentBySanityId, syncCourseToSupabase, getCourseEnrollmentCount, getMultipleCourseEnrollmentCounts } from '@/lib/course-management';
+import { getCourseBySlug } from '@/sanity/lib/queries';
+import { getCourseEnrollmentCount } from '@/lib/course-management';
 import { supabase } from '@/lib/supabase';
 import { urlFor } from '@/sanity/lib/image';
 import { Spinner } from '@/components/ui/spinner';
@@ -19,8 +25,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import CourseCard from '@/components/ui/course-card';
 import YouTubeVideoModal from '@/components/ui/youtube-video-modal';
+import { CourseDescriptionTooltip } from '@/components/course-description-tooltip';
+import UnifiedCourseGrid from '@/components/ui/unified-course-grid';
+import PaymentModal from '@/components/payments/PaymentModal';
 
 
 interface CourseData {
@@ -115,26 +123,28 @@ interface CourseData {
 
 export default function CoursePage() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
   
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
+  const [enrollmentData, setEnrollmentData] = useState<{ enrolled_at: string } | null>(null);
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showFacultyModal, setShowFacultyModal] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<string[]>([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['section-0']);
   const [enrollmentCount, setEnrollmentCount] = useState<number>(0);
-  const [relatedCourses, setRelatedCourses] = useState<CourseData[]>([]);
-  const [relatedCoursesEnrollmentCounts, setRelatedCoursesEnrollmentCounts] = useState<Record<string, number>>({});
   const [showVideoModal, setShowVideoModal] = useState(false);
 
   useEffect(() => {
     // Get current user
     const getCurrentUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user || null);
+      setAccessToken(session?.access_token || null);
     };
     getCurrentUser();
   }, []);
@@ -156,33 +166,30 @@ export default function CoursePage() {
         const realEnrollmentCount = await getCourseEnrollmentCount(courseData._id);
         setEnrollmentCount(realEnrollmentCount);
 
-        // Fetch related courses from same degree and department
-        const relatedCoursesData = await getRelatedCourses(
-          courseData.degree, 
-          courseData.department, 
-          courseData._id, 
-          6
-        );
-        setRelatedCourses(relatedCoursesData);
-
-        // Fetch enrollment counts for related courses
-        if (relatedCoursesData.length > 0) {
-          const relatedCourseIds = relatedCoursesData.map((course: CourseData) => course._id);
-          const enrollmentCounts = await getMultipleCourseEnrollmentCounts(relatedCourseIds);
-          setRelatedCoursesEnrollmentCounts(enrollmentCounts);
-        }
-
-        // Check if user is enrolled
-        if (user) {
+        // Check if user is enrolled using API (bypasses RLS)
+        if (user && accessToken) {
           try {
-            const enrollment = await checkUserEnrollmentBySanityId(user.id, courseData._id);
-            setIsEnrolled(!!enrollment);
+            const response = await fetch(`/api/enrollments`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`
+              }
+            });
+            if (response.ok) {
+              const data = await response.json();
+              const enrollment = data.enrollments?.find(
+                (e: { sanityId: string; enrolledAt: string }) => e.sanityId === courseData._id
+              );
+              if (enrollment) {
+                setIsEnrolled(true);
+                setEnrollmentData({ enrolled_at: enrollment.enrolledAt });
+              }
+            }
           } catch {
-            console.log('Not enrolled yet');
+            // Not enrolled yet
           }
         }
       } catch (err) {
-        console.error('Error fetching course:', err);
+
         setError('Failed to load course. Please try again later.');
       } finally {
         setLoading(false);
@@ -192,7 +199,7 @@ export default function CoursePage() {
     if (slug) {
       fetchCourse();
     }
-  }, [slug, user]);
+  }, [slug, user, accessToken]);
 
   const handleEnrollment = async () => {
     if (!user) {
@@ -203,51 +210,68 @@ export default function CoursePage() {
 
     if (!course) return;
 
+    // Check if it's a paid course
+    if (course.price && course.price > 0) {
+      // Show payment modal for paid courses
+      setShowPaymentModal(true);
+      return;
+    }
+
+    // For free courses, proceed with direct enrollment
+    await handleFreeEnrollment();
+  };
+
+  const handleFreeEnrollment = async () => {
+    if (!user || !course || !accessToken) return;
+
     try {
       setEnrolling(true);
       
-      console.log('🎯 Starting enrollment process for course:', course.title);
+      // Enroll using server-side API (bypasses RLS restrictions)
+      // Pass course data so server can sync if needed
+      const response = await fetch('/api/enroll', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          courseSanityId: course._id,
+          userName: user.user_metadata?.full_name || user.email?.split('@')[0] || null,
+          courseData: {
+            _id: course._id,
+            title: course.title,
+            slug: course.slug,
+            description: course.description,
+            thumbnail: course.thumbnail,
+            faculty: course.faculty,
+            rating: course.rating || 4.5,
+            totalEnrollments: course.totalEnrollments || 0,
+            estimatedDuration: course.estimatedDuration || 0,
+            level: course.level,
+            price: course.price || 0,
+            tags: course.tags || [],
+            degree: course.degree,
+            department: course.department,
+            language: course.language || 'English',
+            publishedAt: course.publishedAt
+          }
+        }),
+      });
       
-      // First sync the course to Supabase if it doesn't exist
-      try {
-        console.log('🔄 Syncing course to Supabase...');
-        await syncCourseToSupabase({
-          _id: course._id,
-          title: course.title,
-          slug: course.slug,
-          description: course.description,
-          thumbnail: course.thumbnail,
-          faculty: course.faculty,
-          rating: course.rating || 4.5,
-          totalEnrollments: course.totalEnrollments || 0,
-          estimatedDuration: course.estimatedDuration || 0,
-          level: course.level,
-          price: course.price || 0,
-          tags: course.tags || [],
-          degree: course.degree,
-          department: course.department,
-          language: course.language || 'English',
-          isPublished: true,
-          isFeatured: false,
-          publishedAt: course.publishedAt
-        });
-        console.log('✅ Course sync completed');
-      } catch (syncError) {
-        console.log('⚠️ Course sync failed or already exists:', syncError);
-        // Continue with enrollment even if sync fails (course might already exist)
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Enrollment failed');
       }
       
-      // Then enroll the user
-      console.log('📝 Enrolling user...');
-      await enrollUserInCourseBySanityId(user.id, course._id);
       setIsEnrolled(true);
       
       // Update enrollment count
       const updatedCount = await getCourseEnrollmentCount(course._id);
       setEnrollmentCount(updatedCount);
       
-      console.log('🎉 Enrollment successful!');
-      toast.success('Successfully enrolled in the course!', {
+      toast.success(data.alreadyEnrolled ? 'You are already enrolled!' : 'Successfully enrolled in the course!', {
         style: {
           backgroundColor: 'white',
           color: 'black',
@@ -261,17 +285,79 @@ export default function CoursePage() {
       }, 1500);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown enrollment error';
-      console.error('❌ Enrollment failed:', errorMessage);
-      console.error('❌ Full error object:', err);
+      console.error('Enrollment error:', errorMessage);
+      toast.error(`Enrollment failed: ${errorMessage}`);
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    if (!user || !course || !accessToken) return;
+    
+    try {
+      setEnrolling(true);
+      setShowPaymentModal(false);
       
-      if (errorMessage.includes('already enrolled')) {
-        setIsEnrolled(true);
-        alert('You are already enrolled in this course!');
-      } else if (errorMessage.includes('not found in database')) {
-        alert('Course setup issue. Please try again or contact support.');
-      } else {
-        alert(`Enrollment failed: ${errorMessage}`);
+      // Enroll using server-side API (bypasses RLS restrictions)
+      // Pass course data so server can sync if needed
+      const response = await fetch('/api/enroll', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          courseSanityId: course._id,
+          userName: user.user_metadata?.full_name || user.email?.split('@')[0] || null,
+          courseData: {
+            _id: course._id,
+            title: course.title,
+            slug: course.slug,
+            description: course.description,
+            thumbnail: course.thumbnail,
+            faculty: course.faculty,
+            rating: course.rating || 4.5,
+            totalEnrollments: course.totalEnrollments || 0,
+            estimatedDuration: course.estimatedDuration || 0,
+            level: course.level,
+            price: course.price || 0,
+            tags: course.tags || [],
+            degree: course.degree,
+            department: course.department,
+            language: course.language || 'English',
+            publishedAt: course.publishedAt
+          }
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Enrollment failed');
       }
+      
+      setIsEnrolled(true);
+      
+      // Update enrollment count
+      const updatedCount = await getCourseEnrollmentCount(course._id);
+      setEnrollmentCount(updatedCount);
+      
+      toast.success('Payment successful! Welcome to the course.', {
+        style: {
+          backgroundColor: 'white',
+          color: 'black',
+        },
+        position: 'bottom-right',
+      });
+      
+      // Redirect to learn page after successful payment and enrollment
+      setTimeout(() => {
+        window.location.href = `/courses/learn/${course._id}`;
+      }, 1500);
+    } catch (err) {
+      console.error('Error enrolling after payment:', err);
+      toast.error('Enrollment failed. Please contact support.');
     } finally {
       setEnrolling(false);
     }
@@ -336,11 +422,9 @@ export default function CoursePage() {
   if (loading) {
     return (
       <DashboardLayout title="">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <Spinner />
-            <p className="text-gray-400 mt-4">Loading course details...</p>
-          </div>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <Spinner />
+          <p className="text-gray-400">Loading course details...</p>
         </div>
       </DashboardLayout>
     );
@@ -349,7 +433,7 @@ export default function CoursePage() {
   if (error || !course) {
     return (
       <DashboardLayout title="Course Not Found">
-        <div className="bg-red-900/20 border border-red-700 rounded-xl p-6 text-center">
+        <div className="bg-red-900/20 border border-red-700 p-6 text-center">
           <h3 className="text-lg font-semibold text-red-400 mb-2">Course Not Found</h3>
           <p className="text-red-300">{error || 'The requested course could not be found.'}</p>
         </div>
@@ -365,7 +449,7 @@ export default function CoursePage() {
           {/* Mobile: Right Column First, Desktop: Right Column Second */}
           <div className="order-1 lg:order-2 lg:w-1/3 lg:sticky lg:top-4 lg:h-fit">
             {/* Course Preview Card */}
-            <div className="bg-black border border-gray-700 rounded-sm overflow-hidden">
+            <div className="bg-black border rounded-sm overflow-hidden">
               {/* Video Preview */}
               <div className="relative aspect-video">
                 <Image
@@ -379,7 +463,7 @@ export default function CoursePage() {
                     <Button
                       variant="ghost"
                       size="lg"
-                      className="bg-white/20 backdrop-blur-sm hover:bg-white/30"
+                      className="bg-black/50 backdrop-blur-sm hover:bg-black/60"
                       onClick={() => setShowVideoModal(true)}
                     >
                       <Play className="w-8 h-8 text-white fill-white mr-2" />
@@ -393,8 +477,18 @@ export default function CoursePage() {
                 {/* Price Section */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
+                    {/* Includes Text */}
+                    <div className="text-lg sm:text-sm text-white text-left">
+                      <div className="font-bold">Includes:</div>
+                      <div className="text-xs text-white mt-1">
+                        <div>Modules</div>
+                        <div>Assignments</div>
+                        <div>Quizzes</div>
+                      </div>
+                    </div>
+
                     {/* Price */}
-                    <div>
+                    <div className="text-right">
                       {course.price === 0 ? (
                         <div>
                           <div className="text-2xl sm:text-3xl font-bold text-white">₹0</div>
@@ -406,45 +500,53 @@ export default function CoursePage() {
                         </div>
                       )}
                     </div>
-
-                    {/* Includes Text */}
-                    <div className="text-lg sm:text-sm text-white text-right">
-                      <div className="font-bold">Includes:</div>
-                      <div className="text-xs text-white mt-1">
-                        <div>Modules</div>
-                        <div>Assignments</div>
-                        <div>Quizzes</div>
-                      </div>
-                    </div>
                   </div>
 
                   {/* Enrollment Button - Full Width */}
-                  <Button
-                    onClick={handleEnrollment}
-                    disabled={enrolling || isEnrolled}
-                    className={`w-full py-3 text-base font-semibold ${
-                      isEnrolled
-                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                        : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white'
-                    }`}
-                  >
-                    {enrolling ? (
-                      <>
-                        <Spinner className="w-5 h-5 mr-2" />
-                        Enrolling...
-                      </>
-                    ) : isEnrolled ? (
-                      <>
-                        <CheckCircle className="w-5 h-5 mr-2" />
-                        Enrolled
-                      </>
-                    ) : (
-                      <>
-                        <BookOpen className="w-5 h-5 mr-2" />
-                        Enroll Now
-                      </>
-                    )}
-                  </Button>
+                  {isEnrolled ? (
+                    <>
+                      {/* Enrollment Date */}
+                      {enrollmentData?.enrolled_at && (
+                        <div className="text-center text-sm text-gray-400 mb-2">
+                          Already enrolled at: {new Date(enrollmentData.enrolled_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      )}
+                      {/* Continue Course Button */}
+                      <Button
+                        onClick={() => {
+                          window.location.href = `/courses/learn/${course._id}`;
+                        }}
+                        className="w-full py-3 text-base font-semibold bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <Play className="w-5 h-5 mr-2" />
+                        Continue Course
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      onClick={handleEnrollment}
+                      disabled={enrolling}
+                      className="w-full py-3 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                    >
+                      {enrolling ? (
+                        <>
+                          <Spinner className="w-5 h-5 mr-2" />
+                          Enrolling...
+                        </>
+                      ) : (
+                        <>
+                          <BookOpen className="w-5 h-5 mr-2" />
+                          Enroll Now
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Topics Covered */}
@@ -480,25 +582,31 @@ export default function CoursePage() {
             <div className="space-y-6">
               {/* Course Header */}
               <div className="space-y-4">
+                {/* Back Button - Hidden on mobile */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/courses')}
+                  className="mb-4 bg-black text-white hover:bg-accent hidden md:inline-flex"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-0" />
+                  Back
+                </Button>
+                
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="bg-white border-gray-600 text-black">
+                  <Badge variant="outline" className="bg-white border-gray-600 text-black hover:bg-white">
                     {course.degree?.toUpperCase()}
                   </Badge>
-                  <Badge variant="outline" className="bg-white border-gray-600 text-black">
+                  <Badge variant="outline" className="bg-white border-gray-600 text-black hover:bg-white">
                     {course.department?.toUpperCase()}
                   </Badge>
-                  <Badge variant="outline" className="bg-white border-gray-600 text-black">
+                  <Badge variant="outline" className="bg-white border-gray-600 text-black hover:bg-white">
                     {course.level?.charAt(0).toUpperCase() + course.level?.slice(1)}
                   </Badge>
                 </div>
                 
-                {/* Description Section */}
-                <div className="space-y-3">
-                  <h3 className="text-xl font-semibold text-white">Description</h3>
-                  <p className="text-gray-300 text-base leading-relaxed">
-                    {course.description}
-                  </p>
-                </div>
+                {/* Description Section with Tooltips */}
+                <CourseDescriptionTooltip description={course.description} />
 
                 {/* Course Stats */}
                 <div className="flex flex-wrap items-center gap-6">
@@ -524,12 +632,60 @@ export default function CoursePage() {
                 {/* Faculty Info */}
                 <div className="space-y-2">
                   <span className="text-gray-400">Created by </span>
-                  <button
-                    onClick={() => setShowFacultyModal(true)}
-                    className="text-blue-400 hover:text-blue-300 transition-colors underline font-medium"
-                  >
-                    {course.faculty.name}
-                  </button>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="text-blue-400 hover:text-blue-300 transition-colors underline font-medium">
+                          {course.faculty.name}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" align="start" className="max-w-md p-0 bg-black border">
+                        <div className="flex flex-col gap-4 p-4">
+                          {/* Profile Image */}
+                          <div className="flex items-start gap-4">
+                            <div className="w-16 h-16 relative rounded-full overflow-hidden border flex-shrink-0">
+                              {course.faculty.profileImage ? (
+                                <Image
+                                  src={urlFor(course.faculty.profileImage).width(64).height(64).url()}
+                                  alt={course.faculty.name}
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
+                                  {course.faculty.name.charAt(0)}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="text-lg font-bold text-white">{course.faculty.name}</h3>
+                              <p className="text-gray-400 text-sm">{course.faculty.profession}</p>
+                            </div>
+                          </div>
+
+                          {/* About Section */}
+                          <div>
+                            <h4 className="text-sm font-semibold text-white mb-1">About</h4>
+                            <p className="text-gray-300 text-xs leading-relaxed">{course.faculty.about}</p>
+                          </div>
+
+                          {/* Skilled At Section */}
+                          {course.faculty.skilledAt && course.faculty.skilledAt.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold text-white mb-2">Skilled At</h4>
+                              <div className="flex flex-wrap gap-1.5">
+                                {course.faculty.skilledAt.map((skill, index) => (
+                                  <Badge key={index} variant="outline" className="border-gray-600 text-gray-300 text-xs px-2 py-0.5">
+                                    {skill}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
 
                 {/* Course Details */}
@@ -575,7 +731,7 @@ export default function CoursePage() {
                   {/* Course Stats and Controls */}
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="text-sm text-gray-400">
-                      {totalSections} sections • {totalLectures} lectures • {Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m total length
+                      {totalSections} sections • {totalLectures} lectures • {Math.floor(totalMinutes / 60)}h {Math.floor(totalMinutes % 60)}m total length
                     </div>
                   </div>
 
@@ -604,7 +760,7 @@ export default function CoursePage() {
                           
                           return (
                             <AccordionItem
-                              className="overflow-hidden border bg-gray-800 "
+                              className="overflow-hidden border bg-black"
                               key={`section-${sectionIndex}-${section._id}`}
                               value={`section-${sectionIndex}`}
                             >
@@ -612,8 +768,8 @@ export default function CoursePage() {
                                 <div className="flex w-full items-center justify-between">
                                   <div className="flex items-center gap-3">
                                     <div className="relative size-4 shrink-0">
-                                      <PlusIcon className="absolute inset-0 size-4 text-gray-400 transition-opacity duration-200 group-data-[state=open]:opacity-0" />
-                                      <MinusIcon className="absolute inset-0 size-4 text-gray-400 opacity-0 transition-opacity duration-200 group-data-[state=open]:opacity-100" />
+                                      <PlusIcon className="absolute inset-0 size-4 text-white transition-opacity duration-200 group-data-[state=open]:opacity-0" />
+                                      <MinusIcon className="absolute inset-0 size-4 text-white opacity-0 transition-opacity duration-200 group-data-[state=open]:opacity-100" />
                                     </div>
                                     <span className="text-left text-white font-medium">
                                       Section {sectionIndex + 1}: {section.title}
@@ -628,7 +784,7 @@ export default function CoursePage() {
                                 {/* Lectures */}
                                 {section.lectures && section.lectures.map((lecture, lectureIndex) => (
                                   <div
-                                    className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex items-center justify-between"
+                                    className="border-t border bg-black pl-11 pr-4 py-3 flex items-center justify-between"
                                     key={lecture._id}
                                   >
                                     <div className="flex items-center gap-3">
@@ -636,7 +792,7 @@ export default function CoursePage() {
                                         {lectureIndex + 1}. {lecture.title}
                                       </span>
                                       {lecture.isPreview && (
-                                        <Badge variant="outline" className="text-xs border-blue-400 text-blue-400">
+                                        <Badge variant="outline" className="hidden md:inline-flex text-xs border-blue-400 text-blue-400">
                                           Preview
                                         </Badge>
                                       )}
@@ -648,17 +804,17 @@ export default function CoursePage() {
                                 ))}
 
                                 {/* Modules */}
-                                {section.modules && section.modules.map((module, moduleIndex) => (
+                                {section.modules && section.modules.map((module) => (
                                   <div
-                                    className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex items-center justify-between"
+                                    className="border-t border bg-black pl-11 pr-4 py-3 flex items-center justify-between"
                                     key={module._id}
                                   >
                                     <div className="flex items-center gap-3">
                                       <span className="text-sm text-white">
-                                        {moduleIndex + 1}. {module.title}
+                                         {module.title}
                                       </span>
-                                      <Badge variant="outline" className="text-xs border-green-400 text-green-400">
-                                        {module.moduleType}
+                                      <Badge variant="outline" className="hidden md:inline-flex text-xs border-green-400 text-green-400">
+                                        Module
                                       </Badge>
                                     </div>
                                     <div className="text-xs text-white">
@@ -668,16 +824,16 @@ export default function CoursePage() {
                                 ))}
 
                                 {/* Assignments */}
-                                {section.assignments && section.assignments.map((assignment, assignmentIndex) => (
+                                {section.assignments && section.assignments.map((assignment) => (
                                   <div
-                                    className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex items-center justify-between"
+                                    className="border-t border bg-black pl-11 pr-4 py-3 flex items-center justify-between"
                                     key={assignment._id}
                                   >
                                     <div className="flex items-center gap-3">
                                       <span className="text-sm text-white">
-                                        {assignmentIndex + 1}. {assignment.title}
+                                         {assignment.title}
                                       </span>
-                                      <Badge variant="outline" className="text-xs border-orange-400 text-orange-400">
+                                      <Badge variant="outline" className="hidden md:inline-flex text-xs border-yellow-400 text-yellow-400">
                                         Assignment
                                       </Badge>
                                     </div>
@@ -689,7 +845,7 @@ export default function CoursePage() {
 
                                 {/* Quiz */}
                                 {section.quiz && (
-                                  <div className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex items-center justify-between">
+                                  <div className="border-t border bg-black pl-11 pr-4 py-3 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                       <span className="text-sm text-white">
                                         {section.quiz.title}
@@ -730,176 +886,17 @@ export default function CoursePage() {
         </div>
       </div>
 
-      {/* Related Courses Section - Mobile: Below Requirements, Desktop: Sidebar with scroll */}
-      {relatedCourses.length > 0 && (
-        <>
-          {/* Mobile View - Below Requirements */}
-          <div className="md:hidden max-w-7xl mx-auto mt-8 px-4 sm:px-6 lg:px-8">
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-2xl font-bold text-white">
-                  More courses from {course.degree} {course.department}
-                </h2>
-                <p className="mt-3 text-base text-gray-400">
-                  Explore other courses in the same field
-                </p>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {relatedCourses.map((relatedCourse) => (
-                  <CourseCard
-                    key={relatedCourse._id}
-                    _id={relatedCourse._id}
-                    title={relatedCourse.title}
-                    description={relatedCourse.description}
-                    slug={relatedCourse.slug}
-                    thumbnail={{
-                      asset: {
-                        _ref: relatedCourse.thumbnail?.asset?._id || '',
-                      },
-                      alt: relatedCourse.thumbnail?.alt
-                    }}
-                    faculty={{
-                      name: relatedCourse.faculty.name,
-                      profileImage: relatedCourse.faculty.profileImage ? {
-                        asset: {
-                          _ref: relatedCourse.faculty.profileImage.asset._id
-                        }
-                      } : undefined
-                    }}
-                    rating={relatedCourse.rating}
-                    totalEnrollments={relatedCourse.totalEnrollments}
-                    estimatedDuration={relatedCourse.estimatedDuration}
-                    level={relatedCourse.level}
-                    price={relatedCourse.price}
-                    tags={relatedCourse.tags}
-                    isPublished={relatedCourse.isPublished ?? true}
-                    enrollmentCountOverride={relatedCoursesEnrollmentCounts[relatedCourse._id]}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Desktop View - Stays in sidebar (unchanged) */}
-          <div className="hidden md:block max-w-7xl mx-auto mt-16 px-4 sm:px-6 lg:px-8">
-            <div className="space-y-8">
-              <div className="text-center">
-                <h2 className="text-3xl font-bold text-white">
-                  More courses from {course.degree} {course.department}
-                </h2>
-                <p className="mt-4 text-lg text-gray-400">
-                  Explore other courses in the same field to expand your knowledge
-                </p>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {relatedCourses.map((relatedCourse) => (
-                  <CourseCard
-                    key={relatedCourse._id}
-                    _id={relatedCourse._id}
-                    title={relatedCourse.title}
-                    description={relatedCourse.description}
-                    slug={relatedCourse.slug}
-                    thumbnail={{
-                      asset: {
-                        _ref: relatedCourse.thumbnail?.asset?._id || '',
-                      },
-                      alt: relatedCourse.thumbnail?.alt
-                    }}
-                    faculty={{
-                      name: relatedCourse.faculty.name,
-                      profileImage: relatedCourse.faculty.profileImage ? {
-                        asset: {
-                          _ref: relatedCourse.faculty.profileImage.asset._id
-                        }
-                      } : undefined
-                    }}
-                    rating={relatedCourse.rating}
-                    totalEnrollments={relatedCourse.totalEnrollments}
-                    estimatedDuration={relatedCourse.estimatedDuration}
-                    level={relatedCourse.level}
-                    price={relatedCourse.price}
-                    tags={relatedCourse.tags}
-                    isPublished={relatedCourse.isPublished ?? true}
-                    enrollmentCountOverride={relatedCoursesEnrollmentCounts[relatedCourse._id]}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Faculty Modal */}
-      {showFacultyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowFacultyModal(false)}
+      {/* Related Courses Section - Using UnifiedCourseGrid */}
+      {course.degree && course.department && (
+        <div className="max-w-7xl mx-auto mt-16">
+          <UnifiedCourseGrid
+            title={`More courses from ${course.degree} ${course.department}`}
+            subtitle="Explore other courses in the same field to expand your knowledge"
+            userDegree={course.degree}
+            userDepartment={course.department}
+            excludeCourseId={course._id}
+            maxCourses={6}
           />
-          
-          {/* Modal Content */}
-          <div className="relative bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            {/* Close Button */}
-            <button
-              onClick={() => setShowFacultyModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {/* Modal Content */}
-            <div className="flex flex-col sm:flex-row gap-6">
-              {/* Profile Image */}
-              <div className="flex-shrink-0 self-center sm:self-start">
-                <div className="w-24 h-24 relative rounded-full overflow-hidden border-2 border-gray-600">
-                  {course.faculty.profileImage ? (
-                    <Image
-                      src={urlFor(course.faculty.profileImage).width(96).height(96).url()}
-                      alt={course.faculty.name}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
-                      {course.faculty.name.charAt(0)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Faculty Details */}
-              <div className="flex-1 space-y-4">
-                {/* Name and Profession */}
-                <div className="text-center sm:text-left">
-                  <h3 className="text-xl font-bold text-white">{course.faculty.name}</h3>
-                  <p className="text-gray-400 text-sm">{course.faculty.profession}</p>
-                </div>
-
-                {/* About Section */}
-                <div>
-                  <h4 className="text-lg font-semibold text-white mb-2">About</h4>
-                  <p className="text-gray-300 text-sm leading-relaxed">{course.faculty.about}</p>
-                </div>
-
-                {/* Skilled At Section */}
-                {course.faculty.skilledAt && course.faculty.skilledAt.length > 0 && (
-                  <div>
-                    <h4 className="text-lg font-semibold text-white mb-2">Skilled At</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {course.faculty.skilledAt.map((skill, index) => (
-                        <Badge key={index} variant="outline" className="border-gray-600 text-gray-300 text-xs">
-                          {skill}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -910,6 +907,21 @@ export default function CoursePage() {
           onClose={() => setShowVideoModal(false)}
           videoUrl={course.previewVideo}
           title={`${course.title} - Preview`}
+        />
+      )}
+
+      {/* Payment Modal for Paid Courses */}
+      {course && user && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          courseId={course._id}
+          courseSanityId={course._id}
+          courseTitle={course.title}
+          amount={course.price || 0}
+          userId={user.id}
+          userEmail={user.email}
+          onPaymentSuccess={handlePaymentSuccess}
         />
       )}
     </DashboardLayout>

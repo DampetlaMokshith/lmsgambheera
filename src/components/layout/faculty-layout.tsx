@@ -27,11 +27,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { BookOpen, Plus, BarChart3, Menu, X, User, ChevronDown, LogOut, Bell } from 'lucide-react';
+import { BookOpen, Plus, BarChart3, Menu, X, User, ChevronDown, LogOut } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Image from 'next/image';
-import SuggestiveSearch from '@/components/ui/suggestive-search';
-import { NotificationDrawer } from '@/components/ui/notification-drawer';
+import FacultyNotifications from '@/components/ui/faculty-notifications';
+import { Footer } from '@/components/footer';
 import { client } from '@/sanity/lib/client';
+import { urlFor } from '@/sanity/lib/image';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface FacultyLayoutProps {
@@ -52,6 +54,7 @@ interface Faculty {
   profileImage?: {
     asset: {
       _ref: string;
+      url?: string;
     };
   };
 }
@@ -78,8 +81,7 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
         
         // Fetch faculty data from Sanity
         try {
-          console.log('🔄 Fetching faculty data for:', session.user.email);
-          const facultyData = await client.fetch(
+const facultyData = await client.fetch(
             `*[_type == "faculty" && email == $email][0]{
               _id,
               name,
@@ -94,17 +96,13 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
             }`,
             { email: session.user.email }
           );
-          
-          console.log('✅ Faculty data fetched:', facultyData);
-          setFaculty(facultyData);
+setFaculty(facultyData);
         } catch (error) {
-          console.error('❌ Error fetching faculty data:', error);
-          // Continue with null faculty data - don't block the UI
+// Continue with null faculty data - don't block the UI
           setFaculty(null);
         }
       } catch (error) {
-        console.error('❌ Error getting session:', error);
-        router.push('/faculty/auth');
+router.push('/faculty/auth');
       } finally {
         // Always set loading to false
         setLoading(false);
@@ -125,8 +123,25 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
   }, [router]);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push('/faculty/auth');
+    try {
+      // Get current user ID before signing out
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Clear user role from localStorage
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('attemptedRole');
+      
+      // Clear session storage (session-specific data)
+      sessionStorage.clear();
+      
+      await supabase.auth.signOut();
+      
+      // Force redirect to home page
+      window.location.href = '/';
+    } catch (error) {
+// Still redirect even if there's an error
+      window.location.href = '/';
+    }
   };
 
   const navigateTo = (path: string) => {
@@ -147,35 +162,53 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
     return 'Faculty';
   };
 
-  // Don't show loading screen if we have user but no faculty data
-  if (loading && !user) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center font-inter">
-        <div className="flex flex-col items-center gap-4">
-          <span className="text-white text-lg">Loading...</span>
-        </div>
-      </div>
-    );
-  }
+  const getFacultyAvatar = () => {
+    // Check if faculty has profile image from Sanity
+    if (faculty?.profileImage) {
+      try {
+        // Use Sanity's image URL builder
+        const imageUrl = urlFor(faculty.profileImage).width(100).height(100).url();
+        return imageUrl;
+      } catch (error) {
+}
+    }
+    
+    // Fallback to default based on gender
+    const gender = faculty?.gender;
+    if (gender === 'male' || gender === 'Male') {
+      return '/bitmoji_boy.png';
+    } else if (gender === 'female' || gender === 'Female') {
+      return '/bitmoji_girl.png';
+    }
+    return null;
+  };
+
+  const getFacultyInitials = () => {
+    const name = faculty?.name || user?.email?.split('@')[0] || 'F';
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Don't block rendering - let individual pages handle their own loading states
+  // This removes the page-level spinner in favor of content-specific loading indicators
 
   return (
-    <div className="min-h-screen bg-gray-900 font-inter">
-      <div className="flex w-full h-screen">
+    <div className="min-h-screen bg-black font-inter">
+      <div className="flex w-full min-h-screen">
         {/* Desktop Sidebar - Hidden on Mobile */}
         <div className="hidden md:block fixed left-0 top-0 h-full w-16 bg-black border-r border-white/10 z-40">
           <div className="flex flex-col h-full p-2">
             {/* MBU Logo at top */}
             <div className="mt-4 mb-8 flex justify-center">
               <div 
-                onClick={() => navigateTo('/faculty/dashboard')}
-                className="w-12 h-12 bg-white rounded-lg flex items-center justify-center overflow-hidden cursor-pointer hover:bg-gray-100 transition-colors"
+                
+                className="w-12 h-12 flex items-center justify-center overflow-hidden hover:opacity-80 transition-opacity"
               >
                 <Image
-                  src="/MBU.jpeg"
-                  alt="MBU Logo"
+                  src="/threadlmslogofavi.png"
+                  alt="THREADLMS Logo"
                   width={48}
                   height={48}
-                  className="object-cover"
+                  className="object-contain"
                 />
               </div>
             </div>
@@ -187,7 +220,7 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
                   <TooltipTrigger asChild>
                     <button 
                       onClick={() => navigateTo('/faculty/coursesavailable')}
-                      className={`w-12 h-12 cursor-pointer flex items-center justify-center rounded-lg transition-colors ${
+                      className={`w-12 h-12 cursor-pointer flex items-center justify-center transition-colors ${
                         isActivePage('/faculty/coursesavailable') 
                           ? 'bg-white/10 text-white' 
                           : 'hover:bg-white/10 text-white'
@@ -207,7 +240,7 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
                   <TooltipTrigger asChild>
                     <button 
                       onClick={() => navigateTo('/faculty/creatingnewcourse')}
-                      className={`w-12 h-12 cursor-pointer flex items-center justify-center rounded-lg transition-colors ${
+                      className={`w-12 h-12 cursor-pointer flex items-center justify-center transition-colors ${
                         isActivePage('/faculty/creatingnewcourse') 
                           ? 'bg-white/10 text-white' 
                           : 'hover:bg-white/10 text-white'
@@ -227,7 +260,7 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
                   <TooltipTrigger asChild>
                     <button 
                       onClick={() => navigateTo('/faculty/progressandgrades')}
-                      className={`w-12 h-12 cursor-pointer flex items-center justify-center rounded-lg transition-colors ${
+                      className={`w-12 h-12 cursor-pointer flex items-center justify-center transition-colors ${
                         isActivePage('/faculty/progressandgrades') 
                           ? 'bg-white/10 text-white' 
                           : 'hover:bg-white/10 text-white'
@@ -248,37 +281,34 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
         {/* Mobile Sidebar Overlay */}
         {isMobileSidebarOpen && (
           <div className="md:hidden fixed inset-0 z-50">
-            {/* Backdrop */}
+            {/* Backdrop with blur */}
             <div 
-              className="absolute inset-0 bg-black bg-opacity-50"
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
               onClick={() => setIsMobileSidebarOpen(false)}
             />
             
-            {/* Sidebar */}
-            <div className="absolute left-0 top-0 h-full w-64 bg-black border-r border-white/10">
+            {/* Sidebar with animation */}
+            <div className="absolute left-0 top-0 h-full w-64 bg-black border-r border-white/10 transform transition-transform duration-300 ease-in-out animate-in slide-in-from-left">
               {/* Header with Logo and Close */}
               <div className="flex items-center justify-between p-4 border-b border-white/10">
                 <div className="flex items-center gap-3">
                   <div 
-                    onClick={() => {
-                      navigateTo('/faculty/dashboard');
-                      setIsMobileSidebarOpen(false);
-                    }}
-                    className="w-10 h-10 bg-white rounded-lg flex items-center justify-center overflow-hidden cursor-pointer"
+                    
+                    className="w-10 h-10 flex items-center justify-center overflow-hidden"
                   >
                     <Image
-                      src="/MBU.jpeg"
-                      alt="MBU Logo"
+                      src="/threadlmslogofavi.png"
+                      alt="THREADLMS Logo"
                       width={40}
                       height={40}
-                      className="object-cover"
+                      className="object-contain"
                     />
                   </div>
                   <span className="text-white font-bold text-lg">Faculty Portal</span>
                 </div>
                 <button 
                   onClick={() => setIsMobileSidebarOpen(false)}
-                  className="text-white hover:bg-white/10 p-2 rounded-lg"
+                  className="text-white hover:bg-white/10 p-2 cursor-pointer"
                 >
                   <X size={20} />
                 </button>
@@ -291,7 +321,7 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
                     navigateTo('/faculty/coursesavailable');
                     setIsMobileSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 p-3 text-left rounded-lg ${
+                  className={`w-full flex items-center gap-3 p-3 text-left ${
                     isActivePage('/faculty/coursesavailable') 
                       ? 'bg-white text-black' 
                       : 'hover:bg-white/10 text-white'
@@ -306,7 +336,7 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
                     navigateTo('/faculty/creatingnewcourse');
                     setIsMobileSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 p-3 text-left rounded-lg ${
+                  className={`w-full flex items-center gap-3 p-3 text-left ${
                     isActivePage('/faculty/creatingnewcourse') 
                       ? 'bg-white text-black' 
                       : 'hover:bg-white/10 text-white'
@@ -321,7 +351,7 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
                     navigateTo('/faculty/progressandgrades');
                     setIsMobileSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 p-3 text-left rounded-lg ${
+                  className={`w-full flex items-center gap-3 p-3 text-left ${
                     isActivePage('/faculty/progressandgrades') 
                       ? 'bg-white text-black' 
                       : 'hover:bg-white/10 text-white'
@@ -344,40 +374,35 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
                 {/* Mobile Menu Button */}
                 <button 
                   onClick={() => setIsMobileSidebarOpen(true)}
-                  className="md:hidden text-white hover:bg-white/10 p-2 rounded-lg"
+                  className="md:hidden text-white hover:bg-white/10 p-2 cursor-pointer"
                 >
                   <Menu size={20} />
                 </button>
                 
-                {/* Search Bar */}
-                <div className="w-64 md:w-80">
-                  <SuggestiveSearch
-                    suggestions={[
-                      "Search courses",
-                      "Find students", 
-                      "Look for assignments",
-                      "Browse resources"
-                    ]}
-                    effect="typewriter"
-                    className="bg-black border-white-400 text-white"
-                  />
-                </div>
+           
               </div>
               
               {/* Right side - Notifications & Profile */}
-              <div className="flex items-center lg:gap-3">
-                {/* Notifications */}
-                <NotificationDrawer>
-                  <button className="relative flex items-center gap-1 text-white hover:bg-white/10 p-2 rounded-lg cursor-pointer">
-                    <Bell size={20} />
-                  </button>
-                </NotificationDrawer>
+              <div className="flex items-center gap-2">
+
+                {/* Faculty Notifications */}
+                {user && (
+                  <FacultyNotifications 
+                    userId={user.id}
+                    userEmail={user.email || ''}
+                  />
+                )}
 
                 {/* Profile Dropdown */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-1 text-white hover:bg-white/10 p-2 rounded-lg cursor-pointer">
-                      <User size={20} />
+                    <button className="flex items-center gap-2 text-white hover:bg-white/10 p-2 cursor-pointer">
+                      <Avatar className="w-8 h-8">
+                        <AvatarImage src={getFacultyAvatar() || undefined} alt={getFacultyFirstName()} />
+                        <AvatarFallback className="bg-gray-800 text-white text-sm">
+                          {getFacultyInitials()}
+                        </AvatarFallback>
+                      </Avatar>
                       <span className="hidden sm:block font-medium">{getFacultyFirstName()}</span>
                       <ChevronDown size={16} />
                     </button>
@@ -394,7 +419,7 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <DropdownMenuItem 
-                          className="text-white hover:bg-white/10 cursor-pointer"
+                          className="text-red-500 hover:text-red-400 hover:bg-red-900/20 cursor-pointer focus:bg-red-900/20 focus:text-red-400"
                           onSelect={(e) => e.preventDefault()}
                         >
                           <LogOut className="mr-2 h-4 w-4" />
@@ -409,12 +434,12 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel className="bg-white text-white hover:bg-gray-200 hover:text-white cursor-pointer ">
+                          <AlertDialogCancel className="bg-white text-black hover:bg-gray-200 hover:text-black cursor-pointer ">
                             Cancel
                           </AlertDialogCancel>
                           <AlertDialogAction 
                             onClick={handleSignOut}
-                            className="bg-black hover:bg-black/60 text-white cursor-pointer"
+                            className="bg-red-600 hover:bg-red-700 text-white cursor-pointer"
                           >
                             Logout
                           </AlertDialogAction>
@@ -428,13 +453,14 @@ export default function FacultyLayout({ children, title }: FacultyLayoutProps) {
           </header>
 
           {/* Page Content */}
-          <main className="pt-16 flex-1 overflow-auto bg-black">
-            <div className="p-4 md:p-6 h-full">
+          <main className="pt-16 flex-1 flex flex-col bg-black min-h-[calc(100vh-64px)]">
+            <div className="p-4 md:p-6 flex-1">
               <div className="max-w-7xl mx-auto">
-                <h2 className="text-2xl md:text-3xl font-bold text-white mb-4 md:mb-6">{title}</h2>
+                {title && <h2 className="text-2xl md:text-3xl font-bold text-white mb-4 md:mb-6">{title}</h2>}
                 {children}
               </div>
             </div>
+            <Footer />
           </main>
         </div>
       </div>

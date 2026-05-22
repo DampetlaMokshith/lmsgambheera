@@ -31,7 +31,6 @@ export function useFacultyAuth() {
 
         setUser(session.user);
       } catch (error) {
-        console.error('Auth check failed:', error);
         if (mounted) {
           toast.error('Authentication failed');
           router.push('/faculty/auth');

@@ -33,12 +33,9 @@ export async function POST(request: NextRequest) {
       .select();
 
     if (error) {
-      console.error('Supabase error:', error);
-      
-      // If table doesn't exist, create a simple fallback response
+// If table doesn't exist, create a simple fallback response
       if (error.code === '42P01') {
-        console.log('Table user_activities does not exist yet. Please run the SQL schema.');
-        return NextResponse.json({
+return NextResponse.json({
           success: true,
           data: { mock: true, message: 'Activity tracking will work after database setup' },
           message: 'Database not ready - using mock response',
@@ -57,8 +54,7 @@ export async function POST(request: NextRequest) {
       message: 'Activity recorded successfully',
     });
   } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json(
+return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );
@@ -96,8 +92,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
+return NextResponse.json(
         { success: false, error: 'Failed to fetch activities' },
         { status: 500 }
       );
@@ -109,8 +104,7 @@ export async function GET(request: NextRequest) {
       count: data.length,
     });
   } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json(
+return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );

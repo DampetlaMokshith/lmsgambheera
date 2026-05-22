@@ -24,6 +24,10 @@ export default function SignupForm({ onToggleMode }: SignupFormProps) {
   const handleGoogleAuth = async () => {
     try {
       setLoading(true);
+      
+      // Store user role before OAuth redirect
+      localStorage.setItem('userRole', 'student');
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -38,12 +42,10 @@ export default function SignupForm({ onToggleMode }: SignupFormProps) {
       });
       
       if (error) {
-        console.error('Error with Google OAuth:', error.message);
-        alert('Error signing in with Google');
+alert('Error signing in with Google');
       }
     } catch (error) {
-      console.error('Google auth error:', error);
-      alert('Something went wrong with Google sign-in');
+alert('Something went wrong with Google sign-in');
     } finally {
       setLoading(false);
     }
@@ -92,11 +94,12 @@ export default function SignupForm({ onToggleMode }: SignupFormProps) {
       if (error) {
         alert(error.message);
       } else {
+        // Store user role after successful signup
+        localStorage.setItem('userRole', 'student');
         alert('Check your email for verification link!');
       }
     } catch (error) {
-      console.error('Auth error:', error);
-      alert('Something went wrong');
+alert('Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -111,7 +114,7 @@ export default function SignupForm({ onToggleMode }: SignupFormProps) {
       >
         <div className="p-8 pb-6">
           <div>
-            <h1 className="mb-1 mt-4 text-xl font-semibold text-white">Create a LMS Gambheera Account</h1>
+            <h1 className="mb-1 mt-4 text-xl font-semibold text-white">Create a THREADLMS Account</h1>
             <p className="text-sm text-gray-400">Welcome! Create an account to get started</p>
           </div>
 
@@ -121,7 +124,7 @@ export default function SignupForm({ onToggleMode }: SignupFormProps) {
               variant="outline"
               onClick={handleGoogleAuth}
               disabled={loading}
-              className="border-white/20 text-white hover:bg-white/10"
+              className="border-white/20 text-white cursor-pointer hover:bg-white/10"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -228,9 +231,9 @@ export default function SignupForm({ onToggleMode }: SignupFormProps) {
                 id="gender"
                 value={gender}
                 onChange={(e) => setGender(e.target.value)}
-                className="w-full px-3 py-2 bg-[#1E1E1E] border border-white/20 text-gray-400 placeholder:text-white focus:ring-gray-400 focus:border-gray-400 rounded-md"
+                className="w-full px-3 py-2 bg-[#1E1E1E] border border-white/20 text-gray-400 placeholder:text-white focus:ring-gray-400 focus:border-gray-400"
               >
-                <option value="" disabled className="rounded-md text-white">Select gender</option>
+                <option value="" disabled className="text-white">Select gender</option>
                 <option value="male" className="text-white">Male</option>
                 <option value="female" className="text-white">Female</option>
               </select>
@@ -257,7 +260,7 @@ export default function SignupForm({ onToggleMode }: SignupFormProps) {
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-white"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-white cursor-pointer"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (

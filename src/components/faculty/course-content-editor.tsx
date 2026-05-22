@@ -172,7 +172,7 @@ function SortableSection({
     <div ref={setNodeRef} style={style}>
       <AccordionItem
         value={`section-${index}`}
-        className="border bg-gray-800 border-gray-700 rounded-lg mb-2"
+        className="border bg-gray-800 border-gray-700 mb-2"
       >
         <AccordionTrigger className="group px-4 py-3 hover:no-underline [&>svg]:hidden">
           <div className="flex w-full items-center justify-between pr-4">
@@ -261,7 +261,7 @@ function SortableSection({
             {section.lectures && section.lectures.map((lecture, lectureIndex) => (
               <div
                 key={lecture._id}
-                className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex items-center justify-between"
+                className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <PlayCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
@@ -272,7 +272,7 @@ function SortableSection({
                     Lecture
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                <div className="flex items-center gap-2 flex-shrink-0 ml-7 sm:ml-2">
                   <span className="text-xs text-white whitespace-nowrap">
                     {lecture.duration || 0}min
                   </span>
@@ -287,7 +287,7 @@ function SortableSection({
             {section.modules && section.modules.map((module, moduleIndex) => (
               <div
                 key={module._id}
-                className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex items-center justify-between"
+                className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <Book className="w-4 h-4 text-green-400 flex-shrink-0" />
@@ -298,7 +298,7 @@ function SortableSection({
                     {module.moduleType}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                <div className="flex items-center gap-2 flex-shrink-0 ml-7 sm:ml-2">
                   <span className="text-xs text-white whitespace-nowrap">
                     {module.estimatedReadTime || 0}min read
                   </span>
@@ -313,7 +313,7 @@ function SortableSection({
             {section.assignments && section.assignments.map((assignment, assignmentIndex) => (
               <div
                 key={assignment._id}
-                className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex items-center justify-between"
+                className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <CheckSquare className="w-4 h-4 text-orange-400 flex-shrink-0" />
@@ -324,7 +324,7 @@ function SortableSection({
                     Assignment
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                <div className="flex items-center gap-2 flex-shrink-0 ml-7 sm:ml-2">
                   <span className="text-xs text-white whitespace-nowrap">
                     {assignment.totalPoints || 0} pts
                   </span>
@@ -337,7 +337,7 @@ function SortableSection({
 
             {/* Quiz */}
             {section.quiz && (
-              <div className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex items-center justify-between">
+              <div className="border-t border-gray-700 bg-gray-750 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <HelpCircle className="w-4 h-4 text-purple-400 flex-shrink-0" />
                   <span className="text-sm text-white truncate">
@@ -347,7 +347,7 @@ function SortableSection({
                     Quiz
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                <div className="flex items-center gap-2 flex-shrink-0 ml-7 sm:ml-2">
                   <span className="text-xs text-white whitespace-nowrap">
                     {section.quiz.questions?.length || 0} questions • {section.quiz.timeLimit || 0}min
                   </span>

@@ -19,13 +19,15 @@ interface LectureContentProps {
   courseId?: string;
   userId?: string;
   onMarkComplete?: () => void;
+  loading?: boolean;
 }
 
 export default function LectureContent({ 
   lecture, 
   courseId, 
   userId,
-  onMarkComplete 
+  onMarkComplete,
+  loading = false
 }: LectureContentProps) {
   
   // Auto-mark lecture as complete when opened (simulating video play)
@@ -50,8 +52,7 @@ export default function LectureContent({
         // Call parent callback if provided
         onMarkComplete?.();
       } catch (error) {
-        console.error('Error marking lecture complete:', error);
-      }
+}
     };
 
     // Mark complete after a short delay (simulating user starting to watch)
@@ -59,6 +60,21 @@ export default function LectureContent({
     
     return () => clearTimeout(timer);
   }, [lecture._id, courseId, userId, onMarkComplete]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="w-full max-w-4xl mx-auto">
+          <div className="aspect-video bg-accent animate-pulse"></div>
+        </div>
+        <div className="max-w-4xl mx-auto space-y-4">
+          <div className="h-8 bg-accent rounded animate-pulse"></div>
+          <div className="h-20 bg-accent rounded animate-pulse"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Video Section - Reduced size */}
@@ -69,7 +85,7 @@ export default function LectureContent({
             title={lecture.title}
           />
         ) : (
-          <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
+          <div className="relative aspect-video bg-black overflow-hidden">
             <div className="flex items-center justify-center h-full text-gray-400">
               <div className="text-center">
                 <div className="text-2xl sm:text-4xl mb-4">📹</div>
@@ -87,8 +103,8 @@ export default function LectureContent({
           <h2 className="text-2xl sm:text-3xl font-bold text-white">
             {lecture.title}
           </h2>
-          <div className="flex items-center text-gray-400 text-sm sm:text-base">
-            <span className="bg-gray-800 px-3 py-1 rounded-full">
+          <div className="flex items-center text-gray-400 text-sm sm:text-sm">
+            <span className="bg-black px-3 py-1 rounded-full">
               {lecture.duration} minutes
             </span>
           </div>

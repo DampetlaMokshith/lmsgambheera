@@ -30,8 +30,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error syncing course:', error);
-    return NextResponse.json(
+return NextResponse.json(
       { error: 'Failed to sync course' },
       { status: 500 }
     );
@@ -58,8 +57,7 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error in manual sync:', error);
-    return NextResponse.json(
+return NextResponse.json(
       { error: 'Failed to sync course manually' },
       { status: 500 }
     );

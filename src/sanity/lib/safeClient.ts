@@ -16,13 +16,10 @@ class SafeSanityClient {
     
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        console.log(`🔍 Sanity fetch attempt ${attempt}/${this.maxRetries}:`, query.substring(0, 50) + '...');
         const result = await this.client.fetch(query, params, options);
-        console.log(`✅ Sanity fetch successful on attempt ${attempt}`);
         return result;
       } catch (error) {
         lastError = error as Error;
-        console.error(`❌ Sanity fetch failed on attempt ${attempt}:`, error);
         
         // Don't retry on certain types of errors
         if (error instanceof Error) {
@@ -30,14 +27,12 @@ class SafeSanityClient {
           if (errorMessage.includes('unauthorized') || 
               errorMessage.includes('forbidden') || 
               errorMessage.includes('invalid token')) {
-            console.error('🚫 Authentication error, not retrying');
             throw error;
           }
         }
         
         // Wait before retrying (except on last attempt)
         if (attempt < this.maxRetries) {
-          console.log(`⏳ Waiting ${this.retryDelay}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, this.retryDelay));
           this.retryDelay *= 2; // Exponential backoff
         }
@@ -45,7 +40,6 @@ class SafeSanityClient {
     }
     
     // If we get here, all retries failed
-    console.error('🔥 All Sanity fetch attempts failed');
     throw lastError || new Error('Sanity fetch failed after all retries');
   }
 }

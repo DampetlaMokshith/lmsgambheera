@@ -31,10 +31,7 @@ export async function POST(req: NextRequest) {
       filename: file.name,
       contentType: file.type,
     });
-
-    console.log('✅ Image uploaded to Sanity:', asset);
-
-    // Update the course with the new thumbnail
+// Update the course with the new thumbnail
     await writeClient
       .patch(courseId)
       .set({
@@ -47,17 +44,13 @@ export async function POST(req: NextRequest) {
         },
       })
       .commit();
-
-    console.log('✅ Course thumbnail updated');
-
-    return NextResponse.json({
+return NextResponse.json({
       success: true,
       assetId: asset._id,
       url: asset.url,
     });
   } catch (error) {
-    console.error('❌ Error uploading thumbnail:', error);
-    return NextResponse.json(
+return NextResponse.json(
       { error: 'Failed to upload thumbnail' },
       { status: 500 }
     );

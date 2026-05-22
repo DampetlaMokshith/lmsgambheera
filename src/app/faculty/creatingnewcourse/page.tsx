@@ -150,8 +150,7 @@ export default function CreatingNewCoursePage() {
         }
       }
     } catch (error) {
-      console.error('Error fetching current user:', error);
-    }
+}
   }, [facultyList]);
 
   const fetchFacultyList = useCallback(async () => {
@@ -166,8 +165,7 @@ export default function CreatingNewCoursePage() {
       `);
       setFacultyList(faculty);
     } catch (error) {
-      console.error('Error fetching faculty:', error);
-      toast.error('Failed to load faculty list');
+toast.error('Failed to load faculty list');
     }
   }, []);
 
@@ -217,14 +215,10 @@ export default function CreatingNewCoursePage() {
 
   const uploadImageToSanity = async (file: File): Promise<SanityImageAsset> => {
     try {
-      console.log('🔄 Uploading image to Sanity...');
-      
       // Use the editorClient with proper authentication
       const asset = await editorClient.assets.upload('image', file, {
         filename: file.name,
       });
-      
-      console.log('✅ Image uploaded successfully:', asset._id);
       
       return {
         _type: 'image',
@@ -234,8 +228,6 @@ export default function CreatingNewCoursePage() {
         }
       };
     } catch (error) {
-      console.error('❌ Error uploading image:', error);
-      
       // More specific error handling
       if (error instanceof Error) {
         if (error.message.includes('permission')) {
@@ -329,10 +321,8 @@ export default function CreatingNewCoursePage() {
 
       const result = await editorClient.create(courseDocument);
       toast.success('Course draft saved successfully!');
-      console.log('Draft saved:', result);
-    } catch (error: unknown) {
-      console.error('Error saving draft:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save draft';
+} catch (error: unknown) {
+const errorMessage = error instanceof Error ? error.message : 'Failed to save draft';
       toast.error('Failed to save draft: ' + errorMessage);
     } finally {
       setIsLoading(false);
@@ -344,8 +334,6 @@ export default function CreatingNewCoursePage() {
 
     setIsLoading(true);
     try {
-      console.log('🔄 Publishing course and syncing...');
-      
       let thumbnailData = null;
       if (courseData.thumbnail) {
         thumbnailData = await uploadImageToSanity(courseData.thumbnail);
@@ -387,19 +375,15 @@ export default function CreatingNewCoursePage() {
       };
 
       // Step 1: Create course in Sanity
-      console.log('📝 Creating course in Sanity...');
       const sanityResult = await editorClient.create(courseDocument);
-      console.log('✅ Course created in Sanity:', sanityResult._id);
 
       // Step 2: Sync to Supabase
-      console.log('🔄 Syncing to Supabase...');
       await syncCourseToSupabase(sanityResult);
 
       // Step 3: Sync all existing courses to ensure completeness
-      console.log('🔄 Syncing all courses...');
       await syncAllCoursesToSupabase();
 
-      toast.success('🎉 Course published and synced successfully!');
+      toast.success('Course published and synced successfully!');
       
       // Reset form
       setCourseData({
@@ -422,16 +406,14 @@ export default function CreatingNewCoursePage() {
       setCourseSections([]);
       
     } catch (error: unknown) {
-      console.error('❌ Error publishing course:', error);
-      
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
       if (errorMessage.includes('permission')) {
-        toast.error('❌ Permission denied. Please check your Sanity API token has Editor permissions.');
+        toast.error('Permission denied. Please check your Sanity API token has Editor permissions.');
       } else if (errorMessage.includes('unauthorized')) {
-        toast.error('❌ Unauthorized. Please verify your Sanity authentication.');
+        toast.error('Unauthorized. Please verify your Sanity authentication.');
       } else {
-        toast.error(`❌ Failed to publish course: ${errorMessage}`);
+        toast.error(`Failed to publish course: ${errorMessage}`);
       }
     } finally {
       setIsLoading(false);
@@ -440,8 +422,6 @@ export default function CreatingNewCoursePage() {
 
   const syncCourseToSupabase = async (sanityData: { _id: string; title: string; slug: { current: string }; description: string; degree: string; department: string; level: string; price: number; isPublished: boolean; estimatedDuration?: number; language?: string; difficultyLevel?: number; [key: string]: unknown }) => {
     try {
-      console.log('🔄 Syncing course to Supabase...');
-      
       // Prepare course data for Supabase
       const courseData = {
         sanity_id: sanityData._id,
@@ -466,15 +446,12 @@ export default function CreatingNewCoursePage() {
         .insert(courseData);
 
       if (error) {
-        console.error('❌ Supabase sync error:', error);
         // Don't throw error - course is still created in Sanity
         toast.warning('⚠️ Course published but sync to database had issues: ' + error.message);
       } else {
-        console.log('✅ Course synced to Supabase:', data);
-        toast.success('✅ Course successfully synced to database!');
+        toast.success('Course successfully synced to database!');
       }
     } catch (error) {
-      console.error('❌ Error syncing to Supabase:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown database error';
       toast.warning('⚠️ Course published but database sync failed: ' + errorMessage);
     }
@@ -482,7 +459,6 @@ export default function CreatingNewCoursePage() {
 
   const syncAllCoursesToSupabase = async () => {
     try {
-      console.log('🔄 Fetching all published courses from Sanity...');
       // Fetch all published courses from Sanity
       const allCourses = await editorClient.fetch(`
         *[_type == "course" && isPublished == true] {
@@ -504,7 +480,6 @@ export default function CreatingNewCoursePage() {
         }
       `);
 
-      console.log(`📊 Found ${allCourses.length} published courses in Sanity`);
       let syncedCount = 0;
       
       for (const course of allCourses) {
@@ -537,33 +512,30 @@ export default function CreatingNewCoursePage() {
                 updated_at: course.updatedAt || new Date().toISOString()
               });
             syncedCount++;
-            console.log(`✅ Synced course: ${course.title}`);
           }
         } catch (error) {
-          console.error(`❌ Error syncing course ${course._id}:`, error);
+          // Error syncing course
         }
       }
 
-      console.log(`🎉 Sync complete: ${syncedCount} new courses synced to Supabase`);
       return syncedCount;
     } catch (error: unknown) {
-      console.error('❌ Error syncing all courses:', error);
       throw error;
     }
   };
 
   return (
-    <FacultyLayout title="Create New Course">
-      <div className="max-w-6xl mx-auto space-y-6 p-4 sm:p-6">
+    <FacultyLayout title="">
+      <div className="max-w-6xl mx-auto space-y-4 md:space-y-6 px-2 sm:px-4 md:px-6">
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-white">Create New Course</h1>
-          <p className="text-gray-400">Build and publish your course from scratch</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-white">Create New Course</h1>
+          <p className="text-gray-400 text-sm md:text-base">Build and publish your course from scratch</p>
         </div>
 
         {/* Action Buttons with Pagination */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 md:gap-4">
+          <div className="flex flex-wrap gap-2 md:gap-3 w-full sm:w-auto justify-center sm:justify-start">
             <Button
               onClick={saveDraft}
               disabled={isLoading}
@@ -633,23 +605,23 @@ export default function CreatingNewCoursePage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-gray-800">
-            <TabsTrigger value="basic-info" className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Basic Information
+            <TabsTrigger value="basic-info" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4">
+              <Settings className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Basic</span> Info
             </TabsTrigger>
-            <TabsTrigger value="content" className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />
-              Course Content
+            <TabsTrigger value="content" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-4">
+              <BookOpen className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Course</span> Content
             </TabsTrigger>
           </TabsList>
 
           {/* Basic Information Tab */}
-          <TabsContent value="basic-info" className="space-y-6">
-            <div className="bg-white/5 rounded-lg p-6 space-y-8">
+          <TabsContent value="basic-info" className="space-y-4 md:space-y-6">
+            <div className="bg-white/5 p-3 md:p-4 lg:p-6 space-y-6 md:space-y-8">
               {/* Basic Information */}
               <section className="space-y-6">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  📚 Basic Information
+                  Basic Information
                 </h2>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -686,7 +658,7 @@ export default function CreatingNewCoursePage() {
                     onChange={(e) => handleInputChange('description', e.target.value)}
                     placeholder="Describe what your course is about..."
                     rows={4}
-                    className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white placeholder-gray-400"
+                    className="w-full bg-white/10 border border-white/20 px-3 py-2 text-white placeholder-gray-400"
                   />
                 </div>
 
@@ -708,7 +680,7 @@ export default function CreatingNewCoursePage() {
               {/* Course Details */}
               <section className="space-y-6">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  ⚙️ Course Details
+                  Course Details
                 </h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -718,7 +690,7 @@ export default function CreatingNewCoursePage() {
                       id="degree"
                       value={courseData.degree}
                       onChange={(e) => handleInputChange('degree', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white"
+                      className="w-full bg-white/10 border border-white/20 px-3 py-2 text-white"
                     >
                       {degreeOptions.map(option => (
                         <option key={option.value} value={option.value} className="bg-gray-800">
@@ -734,7 +706,7 @@ export default function CreatingNewCoursePage() {
                       id="department"
                       value={courseData.department}
                       onChange={(e) => handleInputChange('department', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white"
+                      className="w-full bg-white/10 border border-white/20 px-3 py-2 text-white"
                     >
                       {departmentOptions.map(option => (
                         <option key={option.value} value={option.value} className="bg-gray-800">
@@ -750,7 +722,7 @@ export default function CreatingNewCoursePage() {
                       id="level"
                       value={courseData.level}
                       onChange={(e) => handleInputChange('level', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white"
+                      className="w-full bg-white/10 border border-white/20 px-3 py-2 text-white"
                     >
                       {levelOptions.map(option => (
                         <option key={option.value} value={option.value} className="bg-gray-800">
@@ -766,7 +738,7 @@ export default function CreatingNewCoursePage() {
                       id="faculty"
                       value={courseData.faculty}
                       onChange={(e) => handleInputChange('faculty', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white"
+                      className="w-full bg-white/10 border border-white/20 px-3 py-2 text-white"
                     >
                       <option value="" className="bg-gray-800">Select Faculty</option>
                       {facultyList.map(faculty => (
@@ -783,7 +755,7 @@ export default function CreatingNewCoursePage() {
                       id="language"
                       value={courseData.language}
                       onChange={(e) => handleInputChange('language', e.target.value)}
-                      className="w-full bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white"
+                      className="w-full bg-white/10 border border-white/20 px-3 py-2 text-white"
                     >
                       {languageOptions.map(option => (
                         <option key={option.value} value={option.value} className="bg-gray-800">
@@ -813,11 +785,11 @@ export default function CreatingNewCoursePage() {
               {/* Thumbnail Upload */}
               <section className="space-y-6">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  🖼️ Course Thumbnail
+                  Course Thumbnail
                 </h2>
                 
                 <div className="space-y-4">
-                  <div className="border-2 border-dashed border-white/20 rounded-lg p-6 text-center">
+                  <div className="border-2 border-dashed border-white/20 p-6 text-center">
                     {thumbnailPreview ? (
                       <div className="space-y-4">
                         <Image 
@@ -825,7 +797,7 @@ export default function CreatingNewCoursePage() {
                           alt="Thumbnail preview" 
                           width={300}
                           height={200}
-                          className="max-w-full h-48 object-cover mx-auto rounded-lg"
+                          className="max-w-full h-48 object-cover mx-auto"
                         />
                         <Button
                           onClick={() => {
@@ -871,7 +843,7 @@ export default function CreatingNewCoursePage() {
               {/* Learning Outcomes */}
               <section className="space-y-6">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  🎯 What You&apos;ll Learn *
+                  What You&apos;ll Learn *
                 </h2>
                 
                 <div className="space-y-3">
@@ -911,7 +883,7 @@ export default function CreatingNewCoursePage() {
               {/* Course Requirements */}
               <section className="space-y-6">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  📋 Course Requirements
+                  Course Requirements
                 </h2>
                 
                 <div className="space-y-3">
@@ -951,7 +923,7 @@ export default function CreatingNewCoursePage() {
               {/* Course Includes */}
               <section className="space-y-6">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  📦 This Course Includes
+                  This Course Includes
                 </h2>
                 
                 <div className="space-y-3">
@@ -989,7 +961,7 @@ export default function CreatingNewCoursePage() {
               {/* Tags */}
               <section className="space-y-6">
                 <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  🏷️ Course Tags
+                 Course Tags
                 </h2>
                 
                 <div className="space-y-3">

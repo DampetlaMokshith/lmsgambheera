@@ -13,10 +13,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Save, ArrowLeft, Play, ChevronRight, Globe, BookOpen, Trophy, CheckCircle, Tag } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import CourseContentManager from '@/components/faculty/course-content-manager';
+import { Spinner } from '@/components/ui/spinner';
 
 interface Course {
   _id: string;
@@ -138,7 +140,6 @@ export default function EditCoursePage() {
           return;
         }
 
-        console.log('📚 Course data fetched for editing:', courseData);
         setCourse(courseData as Course);
         const course = courseData as Course;
         setFormData({
@@ -155,7 +156,6 @@ export default function EditCoursePage() {
           previewUrl: course.previewVideo || ''
         });
       } catch (error) {
-        console.error('Error fetching course:', error);
         toast.error('Failed to load course');
         router.push('/faculty/coursesavailable');
       } finally {
@@ -180,15 +180,14 @@ export default function EditCoursePage() {
         language: formData.language,
         duration: formData.duration,
         isPublished: formData.isPublished,
-        whatYouWillLearn: formData.whatYouWillLearn.filter(item => item.trim() !== ''),
-        courseRequirements: formData.courseRequirements.filter(item => item.trim() !== ''),
+        whatYouLearn: formData.whatYouWillLearn.filter(item => item.trim() !== ''),
+        requirements: formData.courseRequirements.filter(item => item.trim() !== ''),
         courseIncludes: formData.courseIncludes.filter(item => item.trim() !== ''),
-        courseTags: formData.courseTags.filter(item => item.trim() !== ''),
-        previewUrl: formData.previewUrl,
+        tags: formData.courseTags.filter(item => item.trim() !== ''),
+        previewVideo: formData.previewUrl,
         updatedAt: new Date().toISOString()
       };
 
-      console.log('💾 Updating course with data:', updateData);
 
       // Get the current session for authentication
       const { data: { session } } = await supabase.auth.getSession();
@@ -226,14 +225,12 @@ export default function EditCoursePage() {
         }
       }
 
-      console.log('✅ Course update result:', result);
       
       toast.success('Course updated successfully!');
       
       // Update local state
       setCourse(prev => prev ? { ...prev, ...updateData, updatedAt: new Date().toISOString() } : null);
     } catch (error) {
-      console.error('❌ Error updating course:', error);
       
       if (error instanceof Error) {
         if (error.message.includes('Insufficient permissions')) {
@@ -319,7 +316,6 @@ export default function EditCoursePage() {
 
       toast.success('Thumbnail updated successfully!');
     } catch (error) {
-      console.error('Error uploading thumbnail:', error);
       toast.error('Failed to upload thumbnail');
     } finally {
       setUploadingThumbnail(false);
@@ -330,7 +326,10 @@ export default function EditCoursePage() {
     return (
       <FacultyLayout title="Edit Course">
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-white">Loading course...</div>
+          <div className="flex flex-col items-center gap-4">
+            <Spinner className="h-8 w-8 text-white" />
+            <span className="text-white">Loading course...</span>
+          </div>
         </div>
       </FacultyLayout>
     );
@@ -358,79 +357,61 @@ export default function EditCoursePage() {
 
   return (
     <FacultyLayout title={course.title ? `Editing: ${course.title}` : 'Edit Course'}>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push('/faculty/coursesavailable')}
-            className="border-gray-600 text-gray-300 hover:bg-gray-800"
-          >
-            <ArrowLeft size={16} className="mr-2" />
-            Back
-          </Button>
-          <div className="flex items-center gap-2">
-            <Badge 
-              variant={course.isPublished ? "default" : "secondary"}
-              className={course.isPublished ? "bg-green-600" : "bg-gray-600"}
-            >
-              {course.isPublished ? "Published" : "Draft"}
-            </Badge>
-            <span className="text-gray-400 text-sm">
+      <div className="flex flex-col h-[calc(100vh-64px-80px-48px)]">
+        {/* Fixed Header */}
+        <div className="flex-shrink-0 bg-black pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2">
+              {/* Back button - hidden on mobile */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push('/faculty/coursesavailable')}
+                className="border-gray-600 text-gray-300 hover:bg-gray-800 hidden sm:flex"
+              >
+                <ArrowLeft size={16} className="mr-2" />
+                Back
+              </Button>
+              <Badge 
+                variant={course.isPublished ? "default" : "secondary"}
+                className={course.isPublished ? "bg-green-600" : "bg-gray-600"}
+              >
+                {course.isPublished ? "Published" : "Draft"}
+              </Badge>
+            </div>
+            <span className="text-gray-400 text-xs sm:text-sm hidden md:block">
               Last updated: {course.updatedAt ? new Date(course.updatedAt).toLocaleDateString() : new Date(course.createdAt).toLocaleDateString()}
             </span>
-          </div>
-          <div className="ml-auto">
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-white text-black hover:bg-gray-100"
-            >
-              <Save size={16} className="mr-2" />
-              {saving ? 'Saving...' : 'Save and Publish'}
-            </Button>
+            <div className="sm:ml-auto">
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                className="bg-white text-black hover:bg-gray-100 w-full sm:w-auto"
+              >
+                <Save size={16} className="mr-2" />
+                {saving ? 'Saving...' : 'Save and Publish'}
+              </Button>
+            </div>
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-gray-900 border-gray-800">
-            <TabsTrigger value="details" className="data-[state=active]:bg-gray-800">Course Details</TabsTrigger>
-            <TabsTrigger value="content" className="data-[state=active]:bg-gray-800">Content & Modules</TabsTrigger>
-          </TabsList>
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+            <TabsList className="bg-black border w-full grid grid-cols-2 flex-shrink-0">
+              <TabsTrigger value="details" className="data-[state=active]:bg-accent text-xs sm:text-sm">Course Details</TabsTrigger>
+              <TabsTrigger value="content" className="data-[state=active]:bg-accent text-xs sm:text-sm">Content & Modules</TabsTrigger>
+            </TabsList>
 
           {/* Course Details Tab */}
-          <TabsContent value="details" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[calc(100vh-200px)]">
-              {/* Left Side - Scrollable Content */}
-              <div className="lg:col-span-2 overflow-y-auto space-y-6 pr-0 lg:pr-4 max-h-[calc(100vh-200px)] custom-scrollbar">
-                <style jsx>{`
-                  .custom-scrollbar {
-                    scrollbar-width: thin;
-                    scrollbar-color: transparent transparent;
-                  }
-                  .custom-scrollbar::-webkit-scrollbar {
-                    width: 6px;
-                  }
-                  .custom-scrollbar::-webkit-scrollbar-track {
-                    background: transparent;
-                  }
-                  .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: rgba(107, 114, 128, 0.3);
-                    border-radius: 3px;
-                  }
-                  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: rgba(107, 114, 128, 0.5);
-                  }
-                  @media (max-width: 1024px) {
-                    .custom-scrollbar {
-                      max-height: none;
-                      overflow-y: visible;
-                    }
-                  }
-                `}</style>
+          <TabsContent value="details" className="flex-1 overflow-hidden mt-4 md:mt-6">
+            <ScrollArea className="h-[calc(100vh-280px)]">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 h-full pb-6 pr-4">
+                {/* Left Side - Course Details Content */}
+                <div className="lg:col-span-2 h-full">
+                  <div className="space-y-4 md:space-y-6">
                 {/* Course Title and Description */}
-                <Card className="bg-gray-900 border-gray-800">
+                <Card className="bg-black border">
                   <CardContent className="p-6 space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="title" className="text-gray-300 text-lg font-semibold">Course Title</Label>
@@ -438,7 +419,7 @@ export default function EditCoursePage() {
                         id="title"
                         value={formData.title}
                         onChange={(e) => handleInputChange('title', e.target.value)}
-                        className="bg-gray-800 border-gray-700 text-white text-xl font-medium"
+                        className="bg-black border text-white text-xl font-medium"
                         placeholder="Enter course title"
                       />
                     </div>
@@ -449,7 +430,7 @@ export default function EditCoursePage() {
                         id="description"
                         value={formData.description}
                         onChange={(e) => handleInputChange('description', e.target.value)}
-                        className="bg-gray-800 border-gray-700 text-white min-h-[120px]"
+                        className="bg-black border text-white min-h-[120px]"
                         placeholder="Enter detailed course description"
                       />
                     </div>
@@ -457,7 +438,7 @@ export default function EditCoursePage() {
                 </Card>
 
                 {/* Course Language and Level */}
-                <Card className="bg-gray-900 border-gray-800">
+                <Card className="bg-black border">
                   <CardContent className="p-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -466,7 +447,7 @@ export default function EditCoursePage() {
                           Course Language
                         </Label>
                         <Select value={formData.language} onValueChange={(value) => handleInputChange('language', value)}>
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                          <SelectTrigger className="bg-black border text-white">
                             <SelectValue placeholder="Select language" />
                           </SelectTrigger>
                           <SelectContent>
@@ -485,7 +466,7 @@ export default function EditCoursePage() {
                           Course Level
                         </Label>
                         <Select value={formData.level || 'beginner'} onValueChange={(value) => handleInputChange('level', value)}>
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                          <SelectTrigger className="bg-black border text-white">
                             <SelectValue placeholder="Select level" />
                           </SelectTrigger>
                           <SelectContent>
@@ -500,7 +481,7 @@ export default function EditCoursePage() {
                 </Card>
 
                 {/* What You'll Learn */}
-                <Card className="bg-gray-900 border-gray-800">
+                <Card className="bg-black border">
                   <CardContent className="p-6 space-y-4">
                     <Label className="text-gray-300 text-lg font-semibold flex items-center gap-2">
                       <BookOpen size={16} />
@@ -517,7 +498,7 @@ export default function EditCoursePage() {
                               newItems[index] = e.target.value;
                               setFormData(prev => ({ ...prev, whatYouWillLearn: newItems }));
                             }}
-                            className="bg-gray-800 border-gray-700 text-white"
+                            className="bg-black border text-white"
                             placeholder="What will students learn?"
                           />
                           {formData.whatYouWillLearn.length > 1 && (
@@ -547,7 +528,7 @@ export default function EditCoursePage() {
                 </Card>
 
                 {/* Course Requirements */}
-                <Card className="bg-gray-900 border-gray-800">
+                <Card className="bg-black border">
                   <CardContent className="p-6 space-y-4">
                     <Label className="text-gray-300 text-lg font-semibold">Course Requirements</Label>
                     <div className="space-y-3">
@@ -561,7 +542,7 @@ export default function EditCoursePage() {
                               newItems[index] = e.target.value;
                               setFormData(prev => ({ ...prev, courseRequirements: newItems }));
                             }}
-                            className="bg-gray-800 border-gray-700 text-white"
+                            className="bg-black border text-white"
                             placeholder="What are the prerequisites?"
                           />
                           {formData.courseRequirements.length > 1 && (
@@ -591,13 +572,13 @@ export default function EditCoursePage() {
                 </Card>
 
                 {/* This Course Includes */}
-                <Card className="bg-gray-900 border-gray-800">
+                <Card className="bg-black border">
                   <CardContent className="p-6 space-y-4">
                     <Label className="text-gray-300 text-lg font-semibold">This Course Includes</Label>
                     <div className="space-y-3">
                       {formData.courseIncludes.map((item, index) => (
                         <div key={index} className="flex items-center gap-2">
-                          <CheckCircle size={16} className="text-blue-500 flex-shrink-0 mt-1" />
+                          <CheckCircle size={16} className="text-green-500 flex-shrink-0 mt-1" />
                           <Input
                             value={item}
                             onChange={(e) => {
@@ -605,7 +586,7 @@ export default function EditCoursePage() {
                               newItems[index] = e.target.value;
                               setFormData(prev => ({ ...prev, courseIncludes: newItems }));
                             }}
-                            className="bg-gray-800 border-gray-700 text-white"
+                            className="bg-black border text-white"
                             placeholder="What&apos;s included in this course?"
                           />
                           {formData.courseIncludes.length > 1 && (
@@ -635,7 +616,7 @@ export default function EditCoursePage() {
                 </Card>
 
                 {/* Course Tags */}
-                <Card className="bg-gray-900 border-gray-800">
+                <Card className="bg-black border">
                   <CardContent className="p-6 space-y-4">
                     <Label className="text-gray-300 text-lg font-semibold flex items-center gap-2">
                       <Tag size={16} />
@@ -652,7 +633,7 @@ export default function EditCoursePage() {
                               newItems[index] = e.target.value;
                               setFormData(prev => ({ ...prev, courseTags: newItems }));
                             }}
-                            className="bg-gray-800 border-gray-700 text-white"
+                            className="bg-black border text-white"
                             placeholder="Add a tag (e.g., programming, web development)"
                           />
                           {formData.courseTags.length > 1 && (
@@ -680,18 +661,19 @@ export default function EditCoursePage() {
                     </div>
                   </CardContent>
                 </Card>
+                  </div>
               </div>
 
               {/* Right Side - Fixed Thumbnail and Preview */}
               <div className="lg:col-span-1 space-y-6 order-first lg:order-last">
                 <div className="lg:sticky lg:top-0 space-y-6">
                   {/* Course Thumbnail */}
-                  <Card className="bg-gray-900 border-gray-800">
+                  <Card className="bg-black">
                     <CardHeader>
                       <CardTitle className="text-white">Course Thumbnail</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="aspect-video rounded-lg overflow-hidden bg-gray-800 mb-4">
+                      <div className="aspect-video overflow-hidden bg-gray-800 mb-4">
                         {course.thumbnail?.asset?.url ? (
                           <Image
                             src={course.thumbnail.asset.url}
@@ -717,7 +699,7 @@ export default function EditCoursePage() {
                       />
                       <Button 
                         variant="outline" 
-                        className="w-full border-gray-600 text-gray-300 hover:bg-gray-800 mb-4"
+                        className="w-full border-gray-600 cursor-pointer text-gray-300 hover:bg-gray-800 mb-4"
                         onClick={() => document.getElementById('thumbnail-upload')?.click()}
                         disabled={uploadingThumbnail}
                       >
@@ -727,7 +709,7 @@ export default function EditCoursePage() {
                   </Card>
 
                   {/* Course Preview Link */}
-                  <Card className="bg-gray-900 border-gray-800">
+                  <Card className="bg-black border">
                     <CardHeader>
                       <CardTitle className="text-white">Course Preview</CardTitle>
                     </CardHeader>
@@ -738,14 +720,14 @@ export default function EditCoursePage() {
                           id="previewUrl"
                           value={formData.previewUrl}
                           onChange={(e) => handleInputChange('previewUrl', e.target.value)}
-                          className="bg-gray-800 border-gray-700 text-white"
+                          className="bg-black border text-white"
                           placeholder="https://youtube.com/watch?v=..."
                         />
                       </div>
                       {formData.previewUrl && (
                         <Button 
                           variant="outline" 
-                          className="w-full border-blue-600 text-blue-400 hover:bg-blue-900"
+                          className="w-full border-blue-600 text-white hover:bg-white/50"
                           onClick={() => window.open(formData.previewUrl, '_blank')}
                         >
                           <Play size={16} className="mr-2" />
@@ -756,11 +738,11 @@ export default function EditCoursePage() {
                   </Card>
 
                   {/* Navigation Button */}
-                  <Card className="bg-gray-900 border-gray-800">
+                  <Card className="bg-black ">
                     <CardContent className="p-6">
                       <Button 
                         onClick={() => setActiveTab('content')}
-                        className="w-full bg-white text-black hover:bg-gray-100 text-lg py-3"
+                        className="w-full bg-white text-black hover:bg-white/80 text-lg py-3"
                       >
                         Next: Courses & Modules
                         <ChevronRight size={20} className="ml-2" />
@@ -770,14 +752,20 @@ export default function EditCoursePage() {
                 </div>
               </div>
             </div>
+          </ScrollArea>
           </TabsContent>
 
           {/* Content & Modules Tab */}
-          <TabsContent value="content" className="space-y-6">
-            <CourseContentManager courseSlug={slug} />
+          <TabsContent value="content" className="flex-1 overflow-hidden mt-4 md:mt-6">
+            <ScrollArea className="h-[calc(100vh-280px)]">
+              <div className="pb-6 pr-4">
+                <CourseContentManager courseSlug={slug} />
+              </div>
+            </ScrollArea>
           </TabsContent>
 
         </Tabs>
+        </div>
       </div>
     </FacultyLayout>
   );

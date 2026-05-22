@@ -41,7 +41,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --animate-shiny-text: shiny-text 8s infinite;
+  --animate-shiny-text: shiny-text 5s infinite;
   @keyframes shiny-text {
   0%, 90%, 100% {
     background-position: calc(-100% - var(--shiny-width)) 0;
@@ -120,6 +120,11 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+html,
+body {
+
+  overflow-x: auto;
+}
 
 @layer base {
   * {
@@ -127,16 +132,6 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-}
-
-@layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
   }
 }
 
@@ -153,4 +148,129 @@
 
 .animate-fade-in {
   animation: fadeIn 0.6s ease-out forwards;
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Default (desktop): NO visible scrollbar */
+  .table-scroll {
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE/Edge */
+  }
+
+  .table-scroll::-webkit-scrollbar {
+    height: 0;                      /* Chrome/Edge */
+  }
+
+  /* MOBILE ONLY: show and style scrollbar */
+  @media (max-width: 768px) {
+    .table-scroll {
+      scrollbar-width: thin;
+      scrollbar-color: #4B5563 #1F2937;
+    }
+
+    .table-scroll::-webkit-scrollbar {
+      height: 10px;
+    }
+
+    .table-scroll::-webkit-scrollbar-track {
+      background: #1F2937;
+      border-radius: 10px;
+      margin: 0 10px;
+    }
+
+    .table-scroll::-webkit-scrollbar-thumb {
+      background: #4B5563;
+      border-radius: 10px;
+      border: 2px solid #1F2937;
+    }
+
+    .table-scroll::-webkit-scrollbar-thumb:hover {
+      background: #6B7280;
+    }
+  }
+
+  /* Custom scrollbar for faculty edit page */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(107, 114, 128, 0.3);
+    border-radius: 3px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 0.5);
+  }
+  @media (max-width: 1024px) {
+    .custom-scrollbar {
+      max-height: none;
+      overflow-y: visible;
+    }
+  }
+}
+
+/* Responsive zoom support - ensure everything scales properly */
+@media (min-width: 1920px) {
+  html {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 1280px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+/* Ensure layout is responsive at all zoom levels */
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Smooth scrolling for better UX at all zoom levels */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Ensure images and media scale properly */
+img, video, canvas, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Body min-height for sticky footer */
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Main content flex-grow for sticky footer */
+#__next {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  flex: 1;
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { CourseProgressAccordion } from './course-progress-accordion';
 import { CourseProgressBar } from './course-progress-bar';
@@ -72,6 +72,9 @@ interface CourseData {
 interface CourseLearningNavProps {
   course: CourseData;
   currentLecture: LectureData | null;
+  currentModule?: ModuleData | null;
+  currentAssignment?: AssignmentData | null;
+  currentQuiz?: QuizData | null;
   user: { id: string } | null;
   onLectureSelect: (lecture: LectureData, section: SectionData) => void;
   onNavigate: (direction: 'previous' | 'next') => void;
@@ -85,13 +88,18 @@ interface CourseLearningNavProps {
     total_items: number;
     completed_item_ids: string[];
   } | null;
-  markComplete?: (itemId: string, itemType: 'lecture' | 'module' | 'assignment' | 'quiz', sectionId?: string) => Promise<void>;
+  markComplete?: (itemId: string, itemType: 'lecture' | 'module' | 'assignment' | 'quiz', sectionId?: string) => Promise<{ success: boolean; message: string }>;
   isItemCompleted?: (itemId: string) => boolean;
+  canNavigatePrevious?: boolean;
+  canNavigateNext?: boolean;
 }
 
 export default function CourseLearningNav({
   course,
   currentLecture,
+  currentModule,
+  currentAssignment,
+  currentQuiz,
   user,
   onLectureSelect,
   onNavigate,
@@ -99,7 +107,9 @@ export default function CourseLearningNav({
   onAssignmentView,
   onQuizAttempt,
   onDrawerToggle,
-  progress
+  progress,
+  canNavigatePrevious = false,
+  canNavigateNext = false
 }: CourseLearningNavProps) {
   const router = useRouter();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false); // Default closed on mobile
@@ -133,27 +143,28 @@ export default function CourseLearningNav({
   return (
     <>
       {/* Top Navigation Bar */}
-      <nav className="fixed top-0 left-0 right-0 bg-black border-b border-gray-700 px-4 md:px-6 py-3 z-50">
+      <nav className="fixed top-0 left-0 right-0 bg-black border-b px-4 md:px-6 py-3 z-50">
         <div className="flex items-center justify-between w-full">
-          {/* Left side - Hamburger (mobile only), Back Navigation and Title */}
+          {/* Left side - Sidebar Toggle (mobile only) and Back Navigation (desktop only) */}
           <div className="flex items-center space-x-3 flex-1 min-w-0">
-            {/* Hamburger Menu - Only visible on mobile */}
+            {/* Sidebar Toggle - Only visible on mobile */}
             <Button 
               size="icon" 
-              variant="outline" 
+              variant="ghost" 
               onClick={toggleDrawer}
-              className="bg-black border-white text-white hover:bg-gray-800 flex-shrink-0 md:hidden"
-              title="Toggle Course Menu"
+              className="md:hidden bg-black text-white hover:bg-gray-800 flex-shrink-0"
+              title={isDrawerOpen ? "Close Course Menu" : "Open Course Menu"}
             >
-              <Menu className="h-4 w-4" />
+              {isDrawerOpen ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
             </Button>
             
+            {/* Back Button - Only visible on desktop */}
             <Button 
               size="icon" 
               variant="outline" 
-              onClick={() => router.push('/courses')}
-              className="bg-black border-white text-white hover:bg-gray-800 flex-shrink-0"
-              title="Back to Courses"
+              onClick={() => router.back()}
+              className="hidden md:flex bg-black text-white hover:bg-black flex-shrink-0"
+              title="Back to Course"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -169,8 +180,8 @@ export default function CourseLearningNav({
               variant="outline"
               size="sm"
               onClick={() => onNavigate('previous')}
-              disabled={!currentLecture}
-              className="bg-black border-white text-white hover:bg-gray-800 px-3"
+              disabled={!canNavigatePrevious}
+              className="bg-black border-white text-white hover:bg-gray-800 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">Previous</span>
@@ -179,8 +190,8 @@ export default function CourseLearningNav({
               variant="outline"
               size="sm"
               onClick={() => onNavigate('next')}
-              disabled={!currentLecture}
-              className="bg-black border-white text-white hover:bg-gray-800 px-3"
+              disabled={!canNavigateNext}
+              className="bg-black border-white text-white hover:bg-gray-800 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="hidden sm:inline">Next</span>
               <ChevronRight className="h-4 w-4 sm:ml-1" />
@@ -190,16 +201,12 @@ export default function CourseLearningNav({
       </nav>
 
       {/* Left Drawer - Permanent on desktop, toggleable on mobile */}
-      <div className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-black border z-40 w-80 sm:w-96 flex flex-col md:translate-x-0 transition-transform duration-300 ${
-        isDrawerOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      <div className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-black border-b z-50 w-80 sm:w-96 flex flex-col md:translate-x-0 transition-all duration-300 ease-in-out ${
+        isDrawerOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         
         {/* Drawer Header */}
-        <div className="p-4 border-b border-gray-700 flex-shrink-0">
-          <div className="mb-4">
-            <h2 className="text-xl font-bold text-white">{course.title}</h2>
-          </div>
-          
+        <div className="p-4 border-b border-black flex-shrink-0">
           {/* Progress Section */}
           {user && progress && (
             <CourseProgressBar
@@ -211,9 +218,13 @@ export default function CourseLearningNav({
           )}
           
           {!progress && user && loading && (
-            <div className="space-y-2">
-              <div className="h-4 bg-gray-700 rounded animate-pulse"></div>
-              <div className="h-3 bg-gray-700 rounded animate-pulse"></div>
+            <div className="space-y-3">
+              {/* Progress Bar Skeleton */}
+              <div className="space-y-2">
+                <div className="h-4 bg-accent rounded animate-pulse"></div>
+                <div className="h-2 bg-accent rounded animate-pulse w-3/4"></div>
+                <div className="h-3 bg-accent rounded animate-pulse w-1/2"></div>
+              </div>
             </div>
           )}
         </div>
@@ -225,18 +236,20 @@ export default function CourseLearningNav({
               {user && (
                 <CourseProgressAccordion
                   sections={course.sections}
-                  courseId={course._id}
-                  userId={user.id}
                   currentLecture={currentLecture}
+                  currentModule={currentModule}
+                  currentAssignment={currentAssignment}
+                  currentQuiz={currentQuiz}
                   onLectureSelect={onLectureSelect}
                   onModuleView={onModuleView}
                   onAssignmentView={onAssignmentView}
                   onQuizAttempt={onQuizAttempt}
+                  completedItemIds={progress?.completed_item_ids || []}
                 />
               )}
               
               {!user && (
-                <div className="text-center text-gray-400 py-8">
+                <div className="text-center text-white py-8">
                   <p>Please log in to track your progress</p>
                 </div>
               )}
@@ -248,7 +261,7 @@ export default function CourseLearningNav({
       {/* Backdrop for mobile */}
       {isDrawerOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
           onClick={toggleDrawer}
         />
       )}

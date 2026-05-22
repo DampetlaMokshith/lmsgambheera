@@ -42,7 +42,6 @@ export async function getPublishedCourses() {
     const courses = await client.fetch(COURSES_QUERY)
     return courses
   } catch (error) {
-    console.error('Error fetching courses:', error)
     throw error
   }
 }
@@ -85,10 +84,8 @@ export async function getCoursesByDegreeAndDepartment(degree: string, department
     }`
     
     const courses = await client.fetch(query, { degree, department })
-    console.log(`🎯 Found ${courses.length} courses for ${degree} ${department}`)
     return courses
   } catch (error) {
-    console.error('Error fetching filtered courses:', error)
     throw error
   }
 }
@@ -150,7 +147,6 @@ export async function createOrUpdateCourse(courseData: CourseData & { _id?: stri
       return result
     }
   } catch (error) {
-    console.error('Error creating/updating course:', error)
     throw error
   }
 }
@@ -164,7 +160,6 @@ export async function createQuiz(quizData: QuizData) {
     })
     return result
   } catch (error) {
-    console.error('Error creating quiz:', error)
     throw error
   }
 }
@@ -178,7 +173,6 @@ export async function createAssignment(assignmentData: AssignmentData) {
     })
     return result
   } catch (error) {
-    console.error('Error creating assignment:', error)
     throw error
   }
 }
@@ -192,7 +186,6 @@ export async function createModule(moduleData: ModuleData) {
     })
     return result
   } catch (error) {
-    console.error('Error creating module:', error)
     throw error
   }
 }
@@ -228,7 +221,6 @@ export async function getCoursesByDegreeAndDept(degree: string, department: stri
     const courses = await client.fetch(query, { degree, department })
     return courses
   } catch (error) {
-    console.error('Error fetching courses:', error)
     throw error
   }
 }
@@ -331,7 +323,6 @@ export async function getCourseBySlug(slug: string) {
     const course = await client.fetch(query, { slug })
     return course
   } catch (error) {
-    console.error('Error fetching course:', error)
     throw error
   }
 }
@@ -434,7 +425,6 @@ export async function getCourseById(courseId: string) {
     const course = await client.fetch(query, { courseId })
     return course
   } catch (error) {
-    console.error('Error fetching course by ID:', error)
     throw error
   }
 }
@@ -461,7 +451,6 @@ export async function getFacultyCourses(facultyId: string) {
     const courses = await client.fetch(query, { facultyId })
     return courses
   } catch (error) {
-    console.error('Error fetching faculty courses:', error)
     throw error
   }
 }
@@ -504,10 +493,8 @@ export async function getRelatedCourses(degree: string, department: string, excl
     }`
     
     const courses = await client.fetch(query, { degree, department, excludeCourseId, limit })
-    console.log(`🎯 Found ${courses.length} related courses for ${degree} ${department}`)
     return courses
   } catch (error) {
-    console.error('Error fetching related courses:', error)
     throw error
   }
 }

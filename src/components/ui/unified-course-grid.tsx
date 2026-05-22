@@ -4,9 +4,11 @@ import { useEffect, useState, useMemo } from 'react';
 import CourseCard from '@/components/ui/course-card';
 import EnrolledCourseCard from '@/components/ui/enrolled-course-card';
 import { getPublishedCourses, getCoursesByDegreeAndDepartment } from '@/sanity/lib/queries';
-import { getMultipleCourseEnrollmentCounts, getMultipleCourseProgress } from '@/lib/course-management';
+import { getMultipleCourseEnrollmentCounts } from '@/lib/course-management';
 import { supabase } from '@/lib/supabase';
 import { Spinner } from '@/components/ui/spinner';
+import { CourseGridSkeleton } from '@/components/skeletons/course-card-skeleton';
+import Image from 'next/image';
 
 interface Course {
   _id: string;
@@ -70,6 +72,7 @@ interface UnifiedCourseGridProps {
   className?: string;
   userDegree?: string;
   userDepartment?: string;
+  excludeCourseId?: string; // Exclude a specific course from results
 }
 
 export default function UnifiedCourseGrid({
@@ -80,7 +83,8 @@ export default function UnifiedCourseGrid({
   maxCourses,
   className = "",
   userDegree,
-  userDepartment
+  userDepartment,
+  excludeCourseId
 }: UnifiedCourseGridProps) {
   const [courses, setCourses] = useState<TransformedCourse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,17 +93,19 @@ export default function UnifiedCourseGrid({
   const [enrolledCourses, setEnrolledCourses] = useState<Set<string>>(new Set());
   const [courseProgress, setCourseProgress] = useState<Record<string, number>>({});
   const [user, setUser] = useState<{ id: string } | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [userDataLoaded, setUserDataLoaded] = useState(false);
 
   useEffect(() => {
     async function fetchUser() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user || null);
+        setAccessToken(session?.access_token || null);
         setUserDataLoaded(true);
       } catch (error) {
-        console.error('Error fetching user:', error);
         setUser(null);
+        setAccessToken(null);
         setUserDataLoaded(true);
       }
     }
@@ -108,39 +114,42 @@ export default function UnifiedCourseGrid({
 
   useEffect(() => {
     async function fetchUserEnrollments() {
-      if (!user || !userDataLoaded) return;
+      if (!user || !userDataLoaded || !accessToken) return;
       
       try {
-        const { data: enrollments } = await supabase
-          .from('course_enrollments')
-          .select('course_id')
-          .eq('user_id', user.id);
-        
-        if (enrollments) {
-          // Get courses data to map supabase IDs to sanity IDs
-          const { data: coursesData } = await supabase
-            .from('courses')
-            .select('id, sanity_id')
-            .in('id', enrollments.map(e => e.course_id));
-          
-          if (coursesData) {
-            const enrolledSanityIds = new Set(
-              coursesData
-                .filter(course => course.sanity_id)
-                .map(course => course.sanity_id!)
-            );
-            setEnrolledCourses(enrolledSanityIds);
-            
-            // Get progress for enrolled courses
-            const enrolledCourseIds = Array.from(enrolledSanityIds);
-            if (enrolledCourseIds.length > 0) {
-              const progressData = await getMultipleCourseProgress(user.id, enrolledCourseIds);
-              setCourseProgress(progressData);
-            }
+        // Fetch enrolled courses via API (uses service role to bypass RLS)
+        const response = await fetch(`/api/enrollments`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
           }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch enrollments');
         }
-      } catch (error) {
-        console.warn('⚠️ Failed to fetch user enrollments:', error);
+
+        const data = await response.json();
+        
+        if (data.enrollments && data.enrollments.length > 0) {
+          // Extract sanity IDs from enrollments
+          const enrolledSanityIds = new Set<string>(
+            data.enrollments
+              .filter((e: { sanityId: string | null }) => e.sanityId)
+              .map((e: { sanityId: string }) => e.sanityId)
+          );
+          setEnrolledCourses(enrolledSanityIds);
+          
+          // Extract progress data from API response
+          const progressData: Record<string, number> = {};
+          data.enrollments.forEach((e: { sanityId: string | null; progressPercentage: number }) => {
+            if (e.sanityId) {
+              progressData[e.sanityId] = e.progressPercentage || 0;
+            }
+          });
+          setCourseProgress(progressData);
+        }
+      } catch {
+        // Failed to fetch user enrollments
       }
     }
 
@@ -155,20 +164,20 @@ export default function UnifiedCourseGrid({
         setLoading(true);
         setError(null);
         
-        console.log('🔍 Fetching courses from Sanity...', { userDegree, userDepartment, showOnlyEnrolled });
-        
         let publishedCourses;
         
-        // Use filtered query if degree and department are provided
-        if (userDegree && userDepartment) {
-          console.log(`🎯 Filtering courses for ${userDegree} ${userDepartment}`);
+        // Use filtered query if degree is provided
+        if (userDegree && userDepartment && userDepartment !== 'all') {
           publishedCourses = await getCoursesByDegreeAndDepartment(userDegree, userDepartment);
+        } else if (userDegree && userDepartment === 'all') {
+          // Fetch all courses and filter by degree only
+          const allCourses = await getPublishedCourses();
+          publishedCourses = allCourses.filter((course: Course) => 
+            course.degree?.toLowerCase() === userDegree.toLowerCase()
+          );
         } else {
-          console.log('📚 Fetching all published courses');
           publishedCourses = await getPublishedCourses();
         }
-        
-        console.log(`✅ Fetched ${publishedCourses.length} courses from Sanity`);
         
         // Transform Sanity data to match CourseCard expectations
         const transformedCourses: TransformedCourse[] = publishedCourses
@@ -208,10 +217,7 @@ export default function UnifiedCourseGrid({
         
         setCourses(transformedCourses);
         
-        console.log(`📊 Displaying ${transformedCourses.length} courses`);
-        
       } catch (err) {
-        console.error('❌ Error fetching courses:', err);
         setError('Failed to load courses. Please try again later.');
       } finally {
         setLoading(false);
@@ -225,13 +231,18 @@ export default function UnifiedCourseGrid({
   const filteredCourses = useMemo(() => {
     let filtered = courses;
     
+    // Exclude specific course if excludeCourseId is provided
+    if (excludeCourseId) {
+      filtered = filtered.filter(course => course._id !== excludeCourseId);
+    }
+    
     if (showOnlyEnrolled && user) {
-      filtered = courses.filter(course => enrolledCourses.has(course._id));
+      filtered = filtered.filter(course => enrolledCourses.has(course._id));
     } else if (!showOnlyEnrolled) {
       // Filter featured courses if needed
       filtered = showOnlyFeatured 
-        ? courses.filter((course: TransformedCourse) => course.isFeatured)
-        : courses;
+        ? filtered.filter((course: TransformedCourse) => course.isFeatured)
+        : filtered;
     }
     
     // Limit number of courses if specified
@@ -240,7 +251,24 @@ export default function UnifiedCourseGrid({
     }
     
     return filtered;
-  }, [courses, showOnlyEnrolled, showOnlyFeatured, maxCourses, user, enrolledCourses]);
+  }, [courses, showOnlyEnrolled, showOnlyFeatured, maxCourses, user, enrolledCourses, excludeCourseId]);
+
+  // Group courses by degree and department when "ALL" is selected
+  const groupedCourses = useMemo(() => {
+    if (userDepartment === 'all' && userDegree) {
+      const groups: Record<string, TransformedCourse[]> = {};
+      filteredCourses.forEach(course => {
+        // Only use department name, not degree
+        const key = course.department?.toUpperCase() || 'UNKNOWN';
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(course);
+      });
+      return groups;
+    }
+    return null;
+  }, [filteredCourses, userDepartment, userDegree]);
 
   // Separate effect for fetching enrollment counts
   useEffect(() => {
@@ -250,10 +278,8 @@ export default function UnifiedCourseGrid({
           const courseIds = filteredCourses.map(course => course._id);
           const enrollmentData = await getMultipleCourseEnrollmentCounts(courseIds);
           setEnrollmentCounts(enrollmentData);
-          console.log('📊 Fetched enrollment counts:', enrollmentData);
-        } catch (enrollmentError) {
-          console.warn('⚠️ Failed to fetch enrollment counts:', enrollmentError);
-        }
+} catch (enrollmentError) {
+}
       }
       fetchEnrollmentCounts();
     }
@@ -267,12 +293,7 @@ export default function UnifiedCourseGrid({
           <p className="text-gray-400">{subtitle}</p>
         </div>
         
-        <div className="flex items-center justify-center min-h-[300px]">
-          <div className="text-center">
-            <Spinner />
-            <p className="text-center text-gray-400">Loading courses...</p>
-          </div>
-        </div>
+        <CourseGridSkeleton count={8} columns={4} />
       </div>
     );
   }
@@ -285,7 +306,7 @@ export default function UnifiedCourseGrid({
           <p className="text-gray-400">{subtitle}</p>
         </div>
         
-        <div className="bg-red-900/20 border border-red-700 rounded-xl p-6 text-center">
+        <div className="bg-red-900/20 border border-red-700 p-6 text-center">
           <h3 className="text-lg font-semibold text-red-400 mb-2">Error Loading Courses</h3>
           <p className="text-red-300">{error}</p>
         </div>
@@ -309,44 +330,90 @@ export default function UnifiedCourseGrid({
         )}
       </div>
 
-      {/* Courses Grid */}
+      {/* Courses Grid - Grouped or Regular */}
       {filteredCourses.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredCourses.map((course) => {
-            const isEnrolled = enrolledCourses.has(course._id);
-            
-            if (isEnrolled) {
-              return (
-                <EnrolledCourseCard 
-                  key={`enrolled-${course._id}`}
-                  {...course}
-                  progress={courseProgress[course._id] || 0}
-                />
-              );
-            } else {
-              return (
-                <CourseCard 
-                  key={course._id}
-                  {...course}
-                  enrollmentCountOverride={enrollmentCounts[course._id]}
-                />
-              );
-            }
-          })}
-        </div>
+        groupedCourses ? (
+          // Grouped view when ALL departments selected
+          <div className="space-y-8">
+            {Object.entries(groupedCourses).sort().map(([groupName, groupCourses]) => (
+              <div key={groupName} className="space-y-4">
+                <h3 className="text-xl font-bold text-white pb-2">
+                  For {groupName} :
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {groupCourses.map((course) => {
+                    const isEnrolled = enrolledCourses.has(course._id);
+                    
+                    if (isEnrolled) {
+                      return (
+                        <EnrolledCourseCard 
+                          key={`enrolled-${course._id}`}
+                          {...course}
+                          progress={courseProgress[course._id] || 0}
+                        />
+                      );
+                    } else {
+                      return (
+                        <CourseCard 
+                          key={course._id}
+                          {...course}
+                          enrollmentCountOverride={enrollmentCounts[course._id]}
+                        />
+                      );
+                    }
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          // Regular grid view
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredCourses.map((course) => {
+              const isEnrolled = enrolledCourses.has(course._id);
+              
+              if (isEnrolled) {
+                return (
+                  <EnrolledCourseCard 
+                    key={`enrolled-${course._id}`}
+                    {...course}
+                    progress={courseProgress[course._id] || 0}
+                  />
+                );
+              } else {
+                return (
+                  <CourseCard 
+                    key={course._id}
+                    {...course}
+                    enrollmentCountOverride={enrollmentCounts[course._id]}
+                  />
+                );
+              }
+            })}
+          </div>
+        )
       ) : (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-8 text-center">
-          <h3 className="text-xl font-semibold text-white mb-4">
-            {showOnlyEnrolled ? 'No Enrolled Courses' : showOnlyFeatured ? 'No Featured Courses' : 'No Courses Available'}
-          </h3>
-          <p className="text-gray-400">
-            {showOnlyEnrolled 
-              ? 'You haven\'t enrolled in any courses yet. Browse available courses to get started!'
-              : showOnlyFeatured 
-                ? 'No featured courses found. Check out all courses for more options!'
-                : 'No published courses found. Check back later for new content!'
-            }
-          </p>
+        <div className="bg-black border p-8 text-center">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <Image
+              src="/no_data.svg"
+              alt="No data"
+              width={120}
+              height={120}
+              className="opacity-15"
+            />
+            <h3 className="text-xl font-semibold text-white">
+              {showOnlyEnrolled ? 'No Enrolled Courses' : showOnlyFeatured ? 'No Featured Courses' : 'No Courses Available'}
+            </h3>
+            <p className="text-gray-400">
+              {showOnlyEnrolled 
+                ? 'You haven\'t enrolled in any courses yet. Browse available courses to get started!'
+                : showOnlyFeatured 
+                  ? 'No featured courses found. Check out all courses for more options!'
+                  : 'No published courses found. Check back later for new content!'
+              }
+            </p>
+          </div>
         </div>
       )}
     </div>

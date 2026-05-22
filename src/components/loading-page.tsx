@@ -7,10 +7,10 @@ export default function LoadingPage() {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    // Hide loading page after 4 seconds
+    // Show loading animation for 3500ms to allow all hello greetings to complete
     const timer = setTimeout(() => {
       setIsVisible(false);
-    }, 3000);
+    }, 3500);
 
     return () => clearTimeout(timer);
   }, []);

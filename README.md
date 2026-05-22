@@ -1,4 +1,4 @@
-# 🎓 LMS Gambheera - Complete Learning Management System
+# 🎓 THREADLMS - Complete Learning Management System
 
 A modern, full-featured Learning Management System built with Next.js 15, Sanity CMS, and Supabase.
 

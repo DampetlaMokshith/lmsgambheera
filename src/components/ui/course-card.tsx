@@ -97,7 +97,7 @@ export default function CourseCard({
     <Link href={buttonHref || `/courses/${slug.current}`} className="block">
       <div
         className={`
-          group relative bg-black border rounded-xl overflow-hidden cursor-pointer
+          group relative bg-black border overflow-hidden cursor-pointer
           transition-all duration-300 ease-in-out transform hover:shadow-lg hover:shadow-accent
           ${isHovered ? 'scale-[1.02] -translate-y-1' : ''}
         `}
@@ -116,7 +116,6 @@ export default function CourseCard({
           className={`
             object-cover transition-all duration-500 ease-in-out
             ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}
-            group-hover:scale-110
           `}
           onLoad={() => setImageLoaded(true)}
           priority
@@ -228,7 +227,7 @@ export default function CourseCard({
             className={`
               w-full bg-white 
               hover:from-blue-700 hover:to-purple-700 
-              text-black font-semibold py-2 rounded-lg
+              text-black font-semibold py-2
               transform transition-all duration-300 ease-in-out
               ${isHovered ? 'shadow-lg shadow-yellow-500/25' : ''}
               group-hover:scale-[1.02]

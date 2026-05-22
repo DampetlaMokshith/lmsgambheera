@@ -121,7 +121,6 @@ export default function EditCoursePage() {
           return;
         }
 
-        console.log('📚 Course data fetched for editing:', courseData);
         setCourse(courseData);
         setFormData({
           title: courseData.title || '',
@@ -131,7 +130,6 @@ export default function EditCoursePage() {
           isPublished: courseData.isPublished || false
         });
       } catch (error) {
-        console.error('Error fetching course:', error);
         toast.error('Failed to load course');
         router.push('/faculty/coursesavailable');
       } finally {
@@ -158,7 +156,6 @@ export default function EditCoursePage() {
         updatedAt: new Date().toISOString()
       };
 
-      console.log('💾 Updating course with data:', updateData);
 
       // Get the current session for authentication
       const { data: { session } } = await supabase.auth.getSession();
@@ -196,14 +193,12 @@ export default function EditCoursePage() {
         }
       }
 
-      console.log('✅ Course update result:', result);
       
       toast.success('Course updated successfully!');
       
       // Update local state with real-time timestamp
       setCourse(prev => prev ? { ...prev, ...updateData, updatedAt: new Date().toISOString() } : null);
     } catch (error) {
-      console.error('❌ Error updating course:', error);
       
       if (error instanceof Error) {
         if (error.message.includes('Insufficient permissions')) {
@@ -382,7 +377,7 @@ export default function EditCoursePage() {
                       <p className="text-gray-400 text-sm mb-4">Key learning outcomes for students</p>
                       
                       <div className="space-y-3">
-                        <div className="flex items-start gap-2 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                        <div className="flex items-start gap-2 p-3 bg-gray-800 border border-gray-700">
                           <div className="grid grid-cols-2 gap-2 text-gray-400 mt-1">
                             <span className="text-xs">⋮⋮</span>
                           </div>
@@ -394,7 +389,7 @@ export default function EditCoursePage() {
                           />
                         </div>
                         
-                        <div className="flex items-start gap-2 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                        <div className="flex items-start gap-2 p-3 bg-gray-800 border border-gray-700">
                           <div className="grid grid-cols-2 gap-2 text-gray-400 mt-1">
                             <span className="text-xs">⋮⋮</span>
                           </div>
@@ -406,7 +401,7 @@ export default function EditCoursePage() {
                           />
                         </div>
                         
-                        <div className="flex items-start gap-2 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                        <div className="flex items-start gap-2 p-3 bg-gray-800 border border-gray-700">
                           <div className="grid grid-cols-2 gap-2 text-gray-400 mt-1">
                             <span className="text-xs">⋮⋮</span>
                           </div>
@@ -434,7 +429,7 @@ export default function EditCoursePage() {
                       <p className="text-gray-400 text-sm mb-4">Prerequisites and requirements for the course</p>
                       
                       <div className="space-y-3">
-                        <div className="flex items-start gap-2 p-3 bg-gray-800 rounded-lg border border-gray-700">
+                        <div className="flex items-start gap-2 p-3 bg-gray-800 border border-gray-700">
                           <div className="grid grid-cols-2 gap-2 text-gray-400 mt-1">
                             <span className="text-xs">⋮⋮</span>
                           </div>
@@ -509,7 +504,7 @@ export default function EditCoursePage() {
                     <CardTitle className="text-white">Course Thumbnail</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="aspect-video rounded-lg overflow-hidden bg-gray-800 mb-4">
+                    <div className="aspect-video overflow-hidden bg-gray-800 mb-4">
                       {course.thumbnail?.asset?.url ? (
                         <Image
                           src={course.thumbnail.asset.url}

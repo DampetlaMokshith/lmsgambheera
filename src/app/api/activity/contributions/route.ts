@@ -40,9 +40,7 @@ export async function GET(request: NextRequest) {
 
     // If functions don't exist yet, return sample data
     if (contributionError && contributionError.code === '42883') {
-      console.log('Database functions not ready yet. Returning sample data.');
-      
-      // Generate sample data for current year
+// Generate sample data for current year
       const istNow = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000));
       const currentYear = istNow.getFullYear();
       const sampleData = [];
@@ -74,8 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (contributionError || statsError) {
-      console.error('Database error:', contributionError || statsError);
-      return NextResponse.json(
+return NextResponse.json(
         { success: false, error: 'Failed to fetch contribution data' },
         { status: 500 }
       );
@@ -91,8 +88,7 @@ export async function GET(request: NextRequest) {
       avgHours: stats.avg_hours,
     });
   } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json(
+return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );

@@ -68,7 +68,7 @@ export default function YouTubeVideoModal({ isOpen, onClose, videoUrl, title }: 
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop with blur */}
       <div 
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-black backdrop-blur-sm"
         onClick={onClose}
       />
       
@@ -87,9 +87,9 @@ export default function YouTubeVideoModal({ isOpen, onClose, videoUrl, title }: 
         </div>
 
         {/* Video Container */}
-        <div className="bg-black rounded-lg overflow-hidden shadow-2xl">
+        <div className="bg-black overflow-hidden shadow-2xl">
           {title && (
-            <div className="px-4 py-3 bg-gray-900 border-b border-gray-700">
+            <div className="px-4 py-3 bg-black border-b border">
               <h3 className="text-white font-semibold text-lg truncate">{title}</h3>
             </div>
           )}

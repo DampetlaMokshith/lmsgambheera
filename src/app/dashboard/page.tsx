@@ -5,11 +5,10 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import ProfileCard from '@/components/profile-card';
-import DashboardStats from '@/components/dashboard-stats';
-import ContributionChart from '@/components/contribution-chart';
-import UnifiedCourseGrid from '@/components/ui/unified-course-grid';
-import { ActivityTracker } from '@/components/activity-tracker';
 import { Spinner } from '@/components/ui/spinner';
+import ContributionChart from '@/components/contribution-chart';
+import CourseKanban from '@/components/dashboard/course-kanban';
+import { ActivityTracker } from '@/components/activity-tracker';
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -29,8 +28,7 @@ export default function DashboardPage() {
         }
         
         setUser(session.user);
-      } catch (error) {
-        console.error('Error fetching user:', error);
+      } catch {
         router.push('/auth');
       } finally {
         setLoading(false);
@@ -57,8 +55,9 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <DashboardLayout title="">
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <Spinner />
+        <div className="flex items-center justify-center min-h-[50vh] gap-3">
+          <Spinner className="size-5" />
+          <p className="text-sm text-gray-400 font-medium">Loading dashboard...</p>
         </div>
       </DashboardLayout>
     );
@@ -67,8 +66,8 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <DashboardLayout title="">
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <p className="text-white">Please log in to access your dashboard.</p>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
+          <p className="text-white text-lg">Please log in to access your dashboard.</p>
         </div>
       </DashboardLayout>
     );
@@ -80,10 +79,7 @@ export default function DashboardPage() {
       <ActivityTracker userId={user.id} pageUrl="/dashboard" activityType="dashboard_visit" />
       
       <div className="space-y-6 sm:space-y-8">
-        {/* Header Section */}
-        <div className="bg-black border rounded-xl p-15 sm:p-19 md:p-19">
-          
-        </div>
+       
 
         {/* Dashboard Title */}
         <div className="text-left">
@@ -96,15 +92,10 @@ export default function DashboardPage() {
         <ProfileCard user={user} />
 
         {/* Dashboard Stats */}
-        <DashboardStats />
+        
 
-        {/* My Enrolled Courses */}
-        <UnifiedCourseGrid
-          title="My Enrolled Courses"
-          subtitle="Continue learning from where you left off"
-          showOnlyEnrolled={true}
-          maxCourses={4}
-        />
+        {/* My Learning Journey - Kanban Board */}
+        <CourseKanban userId={user.id} />
 
         {/* Contribution Chart - Desktop Only */}
         <div className="hidden lg:block">

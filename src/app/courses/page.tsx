@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import UnifiedCourseGrid from '@/components/ui/unified-course-grid';
+import { X } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -36,6 +37,7 @@ export default function CoursesPage() {
   ];
 
   const departments = [
+    { value: 'all', label: 'ALL' },
     { value: 'cse', label: 'CSE' },
     { value: 'ece', label: 'ECE' },
     { value: 'mech', label: 'MECH' },
@@ -60,13 +62,9 @@ export default function CoursesPage() {
           .select('degree, department')
           .eq('user_id', user.id)
           .single();
-
-        console.log('🔍 Profile query result:', { profile, error });
-
-        if (!error && profile && profile.degree && profile.department) {
+if (!error && profile && profile.degree && profile.department) {
           // User has saved profile data - use it directly
-          console.log('✅ User profile found:', profile);
-          setUserDegree(profile.degree);
+setUserDegree(profile.degree);
           setUserDepartment(profile.department);
           
           // Clear any temporary cache since we have permanent data
@@ -74,16 +72,13 @@ export default function CoursesPage() {
           localStorage.removeItem(`temp-department-${user.id}`);
         } else if (cachedDegree && cachedDepartment) {
           // Use cached temporary selections
-          console.log('📦 Using cached selections:', { cachedDegree, cachedDepartment });
-          setUserDegree(cachedDegree);
+setUserDegree(cachedDegree);
           setUserDepartment(cachedDepartment);
         } else {
           // No profile data and no cache - show dialog
-          console.log('❓ No profile data found, showing dialog');
           setShowDialog(true);
         }
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
+      } catch {
         // Check cache as fallback
         const cachedDegree = localStorage.getItem(`temp-degree-${user?.id}`);
         const cachedDepartment = localStorage.getItem(`temp-department-${user?.id}`);
@@ -109,10 +104,7 @@ export default function CoursesPage() {
       // Update state for immediate filtering
       setUserDegree(tempDegree);
       setUserDepartment(tempDepartment);
-      
-      console.log('💾 Saved temporary selections to cache and updating profile:', { tempDegree, tempDepartment });
-      
-      // Update user profile in user_profiles table (not profiles)
+// Update user profile in user_profiles table (not profiles)
       try {
         const { error } = await supabase
           .from('user_profiles')
@@ -124,13 +116,11 @@ export default function CoursesPage() {
           });
         
         if (!error) {
-          console.log('✅ Profile saved to database');
           // Clear cache since we have permanent storage now
           localStorage.removeItem(`temp-degree-${user.id}`);
           localStorage.removeItem(`temp-department-${user.id}`);
         }
-      } catch (error) {
-        console.error('❌ Error saving profile:', error);
+      } catch {
         // Keep cache as fallback
       }
       
@@ -143,46 +133,48 @@ export default function CoursesPage() {
   return (
     <DashboardLayout title=" ">
       <div className="space-y-6">
-        {/* Header with Select Buttons */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold text-white">Courses</h1>
-          </div>
-          
-          <div className="flex gap-3">
-            <Select value={userDegree} onValueChange={setUserDegree}>
-              <SelectTrigger className="w-[140px] bg-black border text-white">
-                <SelectValue placeholder="Degree" />
-              </SelectTrigger>
-              <SelectContent className="bg-black border-gray-700">
-                {degrees.map((degree) => (
-                  <SelectItem 
-                    key={degree.value} 
-                    value={degree.value}
-                    className="text-white hover:bg-gray-700 focus:bg-accent"
-                  >
-                    {degree.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Header with Select Buttons - Sticky */}
+        <div className="sticky top-0 z-20 bg-black/95 backdrop-blur-sm pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4">
+            <div>
+              <h1 className="text-4xl font-bold text-white">Courses</h1>
+            </div>
+            
+            <div className="flex gap-3">
+              <Select value={userDegree} onValueChange={setUserDegree}>
+                <SelectTrigger className="w-[140px] bg-black border text-white">
+                  <SelectValue placeholder="Degree" />
+                </SelectTrigger>
+                <SelectContent className="bg-black border-gray-700">
+                  {degrees.map((degree) => (
+                    <SelectItem 
+                      key={degree.value} 
+                      value={degree.value}
+                      className="text-white hover:bg-gray-700 focus:bg-accent"
+                    >
+                      {degree.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select value={userDepartment} onValueChange={setUserDepartment}>
-              <SelectTrigger className="w-[140px] bg-black border text-white">
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent className="bg-black border-gray-700">
-                {departments.map((department) => (
-                  <SelectItem 
-                    key={department.value} 
-                    value={department.value}
-                    className="text-white hover:bg-gray-700 focus:bg-accent"
-                  >
-                    {department.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={userDepartment} onValueChange={setUserDepartment}>
+                <SelectTrigger className="w-[140px] bg-black border text-white">
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent className="bg-black border-gray-700">
+                  {departments.map((department) => (
+                    <SelectItem 
+                      key={department.value} 
+                      value={department.value}
+                      className="text-white hover:bg-gray-700 focus:bg-accent"
+                    >
+                      {department.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -204,6 +196,15 @@ export default function CoursesPage() {
         {/* Dialog for selecting degree and department */}
         <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
           <AlertDialogContent className="bg-black border">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowDialog(false)}
+              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+            >
+              <X className="h-5 w-5 text-white" />
+              <span className="sr-only">Close</span>
+            </button>
+            
             <AlertDialogHeader>
               <AlertDialogTitle className="text-white">Select Your Academic Details</AlertDialogTitle>
               <AlertDialogDescription className="text-gray-400">

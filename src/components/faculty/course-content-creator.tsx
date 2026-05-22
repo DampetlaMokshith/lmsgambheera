@@ -139,7 +139,7 @@ function SortableSection({
     <div ref={setNodeRef} style={style}>
       <AccordionItem
         value={`section-${index}`}
-        className="border bg-gray-800 border-gray-700 rounded-lg mb-2"
+        className="border bg-gray-800 border-gray-700 mb-2"
       >
         <AccordionTrigger className="group px-4 py-3 hover:no-underline [&>svg]:hidden">
           <div className="flex w-full items-center justify-between">

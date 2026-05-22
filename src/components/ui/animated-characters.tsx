@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -195,8 +196,7 @@ function FacultyLoginPage() {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        console.log("🔄 Already logged in, redirecting to coursesavailable...");
-        window.location.href = '/faculty/coursesavailable';
+window.location.href = '/faculty/coursesavailable';
       }
     };
     
@@ -331,18 +331,16 @@ function FacultyLoginPage() {
 
       if (error) {
         setError(error.message);
-        console.log("❌ Faculty Login failed:", error.message);
-        setIsLoading(false);
+setIsLoading(false);
       } else {
-        console.log("✅ Faculty Login successful!");
+// Store user role after successful login
+        localStorage.setItem('userRole', 'faculty');
         // Use window.location for immediate redirect to avoid router delay
-        console.log("🔄 Redirecting to coursesavailable...");
-        window.location.href = "/faculty/coursesavailable";
+window.location.href = "/faculty/coursesavailable";
       }
     } catch (error) {
       setError("An unexpected error occurred. Please try again.");
-      console.log("❌ Login error:", error);
-      setIsLoading(false);
+setIsLoading(false);
     }
 
     // Don't set loading to false here - let the redirect handle it
@@ -354,10 +352,16 @@ function FacultyLoginPage() {
       <div className="relative hidden lg:flex flex-col justify-between bg-black text-primary-foreground">
         <div className="relative z-20">
           <div className="flex items-center pl-4 pt-4 gap-3 text-lg font-semibold">
-            <div className="size-8 rounded-lg bg-white backdrop-blur-sm flex items-center justify-center">
-              <Sparkles className="size-4" />
+            <div className="size-10 flex items-center justify-center">
+              <Image
+                src="/threadlmslogofavi.png"
+                alt="THREADLMS Logo"
+                width={40}
+                height={40}
+                className="object-contain"
+              />
             </div>
-            <span className="text-white">LMS Gambheera - Faculty</span>
+            <span className="text-white">THREADLMS - Faculty</span>
           </div>
         </div>
 
@@ -547,10 +551,16 @@ function FacultyLoginPage() {
         <div className="w-full max-w-[420px]">
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-2 text-lg font-semibold mb-12">
-            <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Sparkles className="size-4 text-primary" />
+            <div className="size-10 flex items-center justify-center">
+              <Image
+                src="/threadlmslogofavi.png"
+                alt="THREADLMS Logo"
+                width={40}
+                height={40}
+                className="object-contain"
+              />
             </div>
-            <span>LMS Gambheera</span>
+            <span>THREADLMS</span>
           </div>
 
           {/* Header */}
@@ -605,7 +615,7 @@ function FacultyLoginPage() {
 
             
             {error && (
-              <div className="p-3 text-sm text-red-400 bg-red-950/20 border border-red-900/30 rounded-lg">
+              <div className="p-3 text-sm text-red-400 bg-red-950/20 border border-red-900/30">
                 {error}
               </div>
             )}

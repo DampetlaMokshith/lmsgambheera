@@ -9,6 +9,7 @@ interface CourseProgressBarProps {
   totalItems?: number;
   showDetails?: boolean;
   className?: string;
+  loading?: boolean;
 }
 
 /**
@@ -21,9 +22,20 @@ export function CourseProgressBar({
   totalItems,
   showDetails = false,
   className = "",
+  loading = false,
 }: CourseProgressBarProps) {
   // Ensure percentage is between 0 and 100
   const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+
+  if (loading) {
+    return (
+      <div className={`space-y-2 ${className}`}>
+        <div className="h-4 bg-accent rounded animate-pulse"></div>
+        <div className="h-2 bg-accent rounded animate-pulse"></div>
+        <div className="h-3 bg-accent rounded animate-pulse"></div>
+      </div>
+    );
+  }
 
   return (
     <div className={`space-y-2 ${className}`}>
@@ -44,7 +56,7 @@ export function CourseProgressBar({
       {/* Progress bar */}
       <Progress
         value={safePercent}
-        className="h-2 bg-gray-800 border border-gray-700"
+        className="h-2 bg-black border border-gray-700"
       />
 
       {/* Optional details */}
@@ -54,7 +66,7 @@ export function CourseProgressBar({
             {completedItems} of {totalItems} items completed
           </span>
           {safePercent === 100 ? (
-            <span className="text-green-500 font-medium">✓ Complete</span>
+            <span className="text-green-500 font-medium">Complete</span>
           ) : (
             <span className="text-blue-400 font-medium">In Progress</span>
           )}

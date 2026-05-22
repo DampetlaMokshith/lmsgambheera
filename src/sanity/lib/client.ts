@@ -39,12 +39,5 @@ export const editorClient = createClient({
 
 // Debug logging for development
 if (process.env.NODE_ENV === 'development') {
-  console.log('🔧 Sanity Client Configuration:', {
-    projectId: projectId ? '✅ Set' : '❌ Missing',
-    dataset: dataset ? '✅ Set' : '❌ Missing',
-    apiVersion: apiVersion ? '✅ Set' : '❌ Missing',
-    hasReadToken: !!readToken,
-    hasWriteToken: !!token,
-    hasEditorToken: !!editorToken,
-  });
+  // Sanity Client Configuration
 }

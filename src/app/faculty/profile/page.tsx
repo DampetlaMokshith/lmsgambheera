@@ -9,10 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Edit, Save, X, Upload } from 'lucide-react';
+import { Edit, Save, X, Upload, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { client, writeClient } from '@/sanity/lib/client';
+import { client } from '@/sanity/lib/client';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 
 interface Faculty {
   _id: string;
@@ -38,7 +39,29 @@ export default function FacultyProfilePage() {
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Faculty | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [newSkill, setNewSkill] = useState('');
   const router = useRouter();
+
+  const handleAddSkill = () => {
+    if (!newSkill.trim() || !editForm) return;
+    const updatedSkills = [...(editForm.skilledAt || []), newSkill.trim()];
+    setEditForm({ ...editForm, skilledAt: updatedSkills });
+    setNewSkill('');
+  };
+
+  const handleRemoveSkill = (indexToRemove: number) => {
+    if (!editForm) return;
+    const updatedSkills = editForm.skilledAt?.filter((_, index) => index !== indexToRemove) || [];
+    setEditForm({ ...editForm, skilledAt: updatedSkills });
+  };
+
+  const handleSkillKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddSkill();
+    }
+  };
 
   useEffect(() => {
     const fetchFacultyProfile = async () => {
@@ -77,8 +100,7 @@ export default function FacultyProfilePage() {
         } else {
           toast.error('Faculty profile not found');
         }
-      } catch (error) {
-        console.error('Error fetching faculty profile:', error);
+      } catch {
         toast.error('Failed to load profile');
       } finally {
         setLoading(false);
@@ -90,14 +112,12 @@ export default function FacultyProfilePage() {
 
   const handleSave = async () => {
     if (!editForm || !faculty) {
-      console.log('❌ Missing editForm or faculty data');
-      toast.error('Missing profile data');
+toast.error('Missing profile data');
       return;
     }
     
     setSaving(true);
 
-    // Create the update payload outside try block so it's available in catch
     const updateData = {
       name: editForm.name?.trim() || '',
       profession: editForm.profession?.trim() || '',
@@ -109,129 +129,39 @@ export default function FacultyProfilePage() {
     };
 
     try {
-      console.log('🔄 Updating faculty profile...', {
-        id: faculty._id,
-        email: faculty.email,
-        changes: editForm
+      // Use API route for server-side update with proper permissions
+      const response = await fetch('/api/faculty/update-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          facultyId: faculty._id,
+          updates: updateData,
+        }),
       });
 
-      console.log('📝 Update payload:', updateData);
-
-      // Test writeClient configuration first
-      console.log('🔧 Testing writeClient configuration...');
-      try {
-        const testFetch = await writeClient.fetch('*[_type == "faculty"][0]');
-        console.log('✅ WriteClient can read data:', testFetch?._id);
-      } catch (testError) {
-        console.warn('⚠️ WriteClient read test failed:', testError);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to update profile');
       }
 
-      // Validate faculty ID format
-      console.log('🔍 Validating faculty document...', {
-        facultyId: faculty._id,
-        facultyType: typeof faculty._id,
-        facultyEmail: faculty.email
-      });
-
-      // Check if document exists
-      try {
-        const existingDoc = await writeClient.getDocument(faculty._id);
-        console.log('✅ Faculty document found:', existingDoc?._id);
-      } catch (docError) {
-        console.error('❌ Document not found or access denied:', docError);
-        throw new Error(`Faculty document not accessible: ${faculty._id}`);
-      }
-
-      // Direct client update with better error handling
-      console.log('🔄 Attempting Sanity writeClient patch...');
-      
-      let updatedFaculty;
-      try {
-        updatedFaculty = await writeClient
-          .patch(faculty._id)
-          .set(updateData)
-          .commit();
-      } catch (sanityError) {
-        console.error('❌ Sanity patch error details:', {
-          sanityError,
-          errorType: typeof sanityError,
-          errorConstructor: sanityError?.constructor?.name,
-          errorMessage: sanityError instanceof Error ? sanityError.message : 'No message',
-          errorToString: String(sanityError),
-          hasMessage: sanityError && typeof sanityError === 'object' && 'message' in sanityError,
-          hasStack: sanityError && typeof sanityError === 'object' && 'stack' in sanityError,
-          errorKeys: Object.keys(sanityError || {}),
-          errorProps: Object.getOwnPropertyNames(sanityError || {})
-        });
-        throw sanityError; // Re-throw to be caught by outer catch
-      }
-
-      console.log('✅ Faculty profile updated successfully:', updatedFaculty);
-      
-      // Update local state
-      const newFacultyData = { ...faculty, ...updatedFaculty };
+      const result = await response.json();
+// Update local state - preserve profileImage from current state
+      const newFacultyData = { 
+        ...faculty, 
+        ...result.data,
+        // Keep the existing profileImage as API doesn't return it
+        profileImage: faculty.profileImage 
+      };
       setFaculty(newFacultyData);
       setEditForm(newFacultyData);
       setIsEditing(false);
-      toast.success('Profile updated successfully! 🎉');
+      toast.success('Profile updated successfully!');
 
     } catch (error) {
-      console.error('❌ Detailed error updating faculty profile:', {
-        error,
-        errorType: typeof error,
-        errorConstructor: error?.constructor?.name,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorStack: error instanceof Error ? error.stack : 'No stack trace',
-        facultyId: faculty._id,
-        updateData: editForm,
-        errorString: String(error),
-        errorJSON: JSON.stringify(error, Object.getOwnPropertyNames(error))
-      });
-
-      // Try fallback API approach
-      try {
-        console.log('🔄 Trying fallback API approach...');
-        const response = await fetch('/api/test-sanity-write', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            facultyId: faculty._id,
-            updates: updateData
-          })
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          console.log('✅ Faculty profile updated via API fallback:', result);
-          
-          // Update local state
-          const newFacultyData = { ...faculty, ...updateData };
-          setFaculty(newFacultyData);
-          setEditForm(newFacultyData);
-          setIsEditing(false);
-          toast.success('Profile updated successfully! 🎉');
-          return;
-        }
-      } catch (apiError) {
-        console.error('❌ API fallback also failed:', apiError);
-      }
-      
-      // Show user-friendly error messages
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      if (errorMessage.includes('Request error') || errorMessage.includes('fetch')) {
-        toast.error('Network error. Please check your internet connection and try again.');
-      } else if (errorMessage.includes('Unauthorized') || errorMessage.includes('401')) {
-        toast.error('Permission denied. Please contact administrator.');
-      } else if (errorMessage.includes('Not found') || errorMessage.includes('404')) {
-        toast.error('Faculty profile not found. Please refresh the page.');
-      } else if (errorMessage.includes('token')) {
-        toast.error('Authentication error. Please try logging out and back in.');
-      } else {
-        toast.error(`Update failed: ${errorMessage || 'Unknown error occurred'}`);
-      }
+const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to update profile: ${errorMessage}`);
     } finally {
       setSaving(false);
     }
@@ -240,12 +170,75 @@ export default function FacultyProfilePage() {
   const handleCancel = () => {
     setEditForm(faculty);
     setIsEditing(false);
+    setNewSkill('');
   };
 
-  const handleSkillChange = (skills: string) => {
-    if (!editForm) return;
-    const skillArray = skills.split(',').map(skill => skill.trim()).filter(skill => skill.length > 0);
-    setEditForm({ ...editForm, skilledAt: skillArray });
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !faculty) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size should be less than 5MB');
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('facultyId', faculty._id);
+
+      // Upload via API route
+      const response = await fetch('/api/faculty/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Failed to upload image');
+      }
+
+      const result = await response.json();
+// Update local state with new image URL
+      setFaculty({
+        ...faculty,
+        profileImage: {
+          asset: {
+            _ref: result.imageRef,
+            url: result.imageUrl,
+          },
+        },
+      });
+
+      if (editForm) {
+        setEditForm({
+          ...editForm,
+          profileImage: {
+            asset: {
+              _ref: result.imageRef,
+              url: result.imageUrl,
+            },
+          },
+        });
+      }
+
+      toast.success('Profile image updated successfully!');
+    } catch (error) {
+const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to upload image: ${errorMessage}`);
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const getProfileImage = () => {
@@ -284,7 +277,7 @@ export default function FacultyProfilePage() {
           <div className="text-center">
             <div className="text-white mb-4">Profile not found</div>
             <Button onClick={() => router.push('/faculty/coursesavailable')}>
-              Go to Dashboard
+              Go to home
             </Button>
           </div>
         </div>
@@ -295,21 +288,29 @@ export default function FacultyProfilePage() {
   return (
     <FacultyLayout title="Profile">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
-          <div className="flex flex-col lg:flex-row gap-8">
+        <div className="bg-black border p-4 md:p-6">
+          <div className="flex flex-col lg:flex-row gap-6 md:gap-8">
             {/* Profile Image Section */}
             <div className="flex flex-col items-center lg:items-start">
               <div className="relative">
-                <Avatar className="w-32 h-32 mb-4">
+                <Avatar className="w-28 h-28 md:w-32 md:h-32 mb-4">
                   <AvatarImage src={getProfileImage() || undefined} alt={faculty.name} />
-                  <AvatarFallback className="text-2xl bg-gray-800 text-white">
+                  <AvatarFallback className="text-2xl bg-accent text-white">
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
                 {isEditing && (
-                  <button className="absolute bottom-4 right-0 bg-white text-black p-2 rounded-full hover:bg-gray-100 transition-colors">
+                  <label htmlFor="profile-image-upload" className="absolute bottom-4 right-0 bg-white text-black p-2 hover:bg-gray-100 transition-colors cursor-pointer">
                     <Upload size={16} />
-                  </button>
+                    <input
+                      id="profile-image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      disabled={uploadingImage}
+                    />
+                  </label>
                 )}
               </div>
             </div>
@@ -317,26 +318,26 @@ export default function FacultyProfilePage() {
             {/* Profile Details Section */}
             <div className="flex-1 space-y-6">
               {/* Header with Edit Button */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h1 className="text-2xl font-bold text-white">{faculty.name}</h1>
-                  <p className="text-gray-400">{faculty.email}</p>
+                  <h1 className="text-xl md:text-2xl font-bold text-white">{faculty.name}</h1>
+                  <p className="text-gray-400 text-sm md:text-base">{faculty.email}</p>
                 </div>
                 {!isEditing ? (
                   <Button
                     onClick={() => setIsEditing(true)}
                     variant="outline"
-                    className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                    className="bg-accent border-gray-700 text-white hover:bg-accent/80 w-full sm:w-auto"
                   >
                     <Edit size={16} className="mr-2" />
                     Edit Profile
                   </Button>
                 ) : (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full sm:w-auto">
                     <Button
                       onClick={handleSave}
                       disabled={saving}
-                      className="bg-white text-black hover:bg-gray-100"
+                      className="bg-white text-black hover:bg-gray-100 flex-1 sm:flex-none"
                     >
                       <Save size={16} className="mr-2" />
                       {saving ? 'Saving...' : 'Save'}
@@ -344,7 +345,7 @@ export default function FacultyProfilePage() {
                     <Button
                       onClick={handleCancel}
                       variant="outline"
-                      className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                      className="bg-accent border-gray-700 text-white hover:bg-accent/80 flex-1 sm:flex-none"
                     >
                       <X size={16} className="mr-2" />
                       Cancel
@@ -363,10 +364,10 @@ export default function FacultyProfilePage() {
                       id="name"
                       value={editForm?.name || ''}
                       onChange={(e) => setEditForm(prev => prev ? { ...prev, name: e.target.value } : null)}
-                      className="bg-gray-800 border-gray-700 text-white"
+                      className="bg-accent border-gray-700 text-white focus:ring-2 focus:ring-white"
                     />
                   ) : (
-                    <p className="text-gray-300 bg-gray-800 p-2 rounded border border-gray-700">
+                    <p className="text-white bg-accent p-2 border border-gray-700">
                       {faculty.name}
                     </p>
                   )}
@@ -375,7 +376,7 @@ export default function FacultyProfilePage() {
                 {/* Email (Read-only) */}
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-white">Email</Label>
-                  <p className="text-gray-300 bg-gray-800 p-2 rounded border border-gray-700">
+                  <p className="text-white bg-accent p-2 border border-gray-700">
                     {faculty.email}
                   </p>
                 </div>
@@ -388,11 +389,11 @@ export default function FacultyProfilePage() {
                       id="profession"
                       value={editForm?.profession || ''}
                       onChange={(e) => setEditForm(prev => prev ? { ...prev, profession: e.target.value } : null)}
-                      className="bg-gray-800 border-gray-700 text-white"
+                      className="bg-accent border-gray-700 text-white focus:ring-2 focus:ring-white"
                       placeholder="e.g., Professor, Lecturer"
                     />
                   ) : (
-                    <p className="text-gray-300 bg-gray-800 p-2 rounded border border-gray-700">
+                    <p className="text-white bg-accent p-2 border border-gray-700">
                       {faculty.profession || 'Not specified'}
                     </p>
                   )}
@@ -406,11 +407,11 @@ export default function FacultyProfilePage() {
                       id="college"
                       value={editForm?.college || ''}
                       onChange={(e) => setEditForm(prev => prev ? { ...prev, college: e.target.value } : null)}
-                      className="bg-gray-800 border-gray-700 text-white"
+                      className="bg-accent border-gray-700 text-white focus:ring-2 focus:ring-white"
                       placeholder="e.g., Engineering College"
                     />
                   ) : (
-                    <p className="text-gray-300 bg-gray-800 p-2 rounded border border-gray-700">
+                    <p className="text-white bg-accent p-2 border border-gray-700">
                       {faculty.college || 'Not specified'}
                     </p>
                   )}
@@ -424,11 +425,11 @@ export default function FacultyProfilePage() {
                       id="department"
                       value={editForm?.department || ''}
                       onChange={(e) => setEditForm(prev => prev ? { ...prev, department: e.target.value } : null)}
-                      className="bg-gray-800 border-gray-700 text-white"
+                      className="bg-accent border-gray-700 text-white focus:ring-2 focus:ring-white"
                       placeholder="e.g., Computer Science"
                     />
                   ) : (
-                    <p className="text-gray-300 bg-gray-800 p-2 rounded border border-gray-700">
+                    <p className="text-white bg-accent p-2 border border-gray-700">
                       {faculty.department || 'Not specified'}
                     </p>
                   )}
@@ -442,10 +443,10 @@ export default function FacultyProfilePage() {
                       value={editForm?.gender || ''}
                       onValueChange={(value) => setEditForm(prev => prev ? { ...prev, gender: value } : null)}
                     >
-                      <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                      <SelectTrigger className="bg-black border-gray-700 text-white">
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
-                      <SelectContent className="bg-gray-800 border-gray-700">
+                      <SelectContent className="bg-accent border-gray-700">
                         <SelectItem value="male" className="text-white">Male</SelectItem>
                         <SelectItem value="female" className="text-white">Female</SelectItem>
                         <SelectItem value="other" className="text-white">Other</SelectItem>
@@ -453,7 +454,7 @@ export default function FacultyProfilePage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="text-gray-300 bg-gray-800 p-2 rounded border border-gray-700">
+                    <p className="text-white bg-accent p-2 border border-gray-700">
                       {faculty.gender ? faculty.gender.charAt(0).toUpperCase() + faculty.gender.slice(1) : 'Not specified'}
                     </p>
                   )}
@@ -464,28 +465,66 @@ export default function FacultyProfilePage() {
               <div className="space-y-2">
                 <Label htmlFor="skills" className="text-white">Skilled At</Label>
                 {isEditing ? (
-                  <Input
-                    id="skills"
-                    value={editForm?.skilledAt?.join(', ') || ''}
-                    onChange={(e) => handleSkillChange(e.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white"
-                    placeholder="e.g., JavaScript, Python, React (comma-separated)"
-                  />
+                  <div className="bg-black border border-gray-700 p-3 space-y-3">
+                    {/* Current Skills as Tags */}
+                    <div className="flex flex-wrap gap-2">
+                      {editForm?.skilledAt && editForm.skilledAt.length > 0 ? (
+                        editForm.skilledAt.map((skill, index) => (
+                          <Badge
+                            key={index}
+                            variant="outline"
+                            className="bg-black text-white border-gray-600 hover:bg-black pr-1 flex items-center gap-1"
+                          >
+                            {skill}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSkill(index)}
+                              className="ml-1 text-gray-400 hover:text-red-400 transition-colors"
+                            >
+                              <X size={14} />
+                            </button>
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-gray-400 text-sm">No skills added yet</span>
+                      )}
+                    </div>
+                    {/* Add New Skill Input */}
+                    <div className="flex gap-2">
+                      <Input
+                        id="skills"
+                        value={newSkill}
+                        onChange={(e) => setNewSkill(e.target.value)}
+                        onKeyDown={handleSkillKeyDown}
+                        className="bg-black border-gray-700 text-white focus:ring-2 focus:ring-white flex-1"
+                        placeholder="Type a skill and press Enter or click Add"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleAddSkill}
+                        size="sm"
+                        variant="outline"
+                        className="bg-white text-white hover:bg-gray-200 border-gray-600"
+                      >
+                        <Plus size={16} className="mr-1" /> Add
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="bg-gray-800 p-2 rounded border border-gray-700">
+                  <div className="bg-accent p-2 border border-gray-700">
                     {faculty.skilledAt && faculty.skilledAt.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {faculty.skilledAt.map((skill, index) => (
                           <span
                             key={index}
-                            className="px-2 py-1 bg-gray-700 text-white text-sm rounded"
+                            className="px-2 py-1 bg-black text-white text-sm border border-gray-700"
                           >
                             {skill}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-gray-300">No skills specified</p>
+                      <p className="text-gray-400">No skills specified</p>
                     )}
                   </div>
                 )}
@@ -499,11 +538,11 @@ export default function FacultyProfilePage() {
                     id="about"
                     value={editForm?.about || ''}
                     onChange={(e) => setEditForm(prev => prev ? { ...prev, about: e.target.value } : null)}
-                    className="bg-gray-800 border-gray-700 text-white min-h-[100px]"
+                    className="bg-accent border-gray-700 text-white min-h-[100px] focus:ring-2 focus:ring-white"
                     placeholder="Tell us about yourself..."
                   />
                 ) : (
-                  <p className="text-gray-300 bg-gray-800 p-2 rounded border border-gray-700 min-h-[100px]">
+                  <p className="text-white bg-accent p-2 border border-gray-700 min-h-[100px]">
                     {faculty.about || 'No description available'}
                   </p>
                 )}

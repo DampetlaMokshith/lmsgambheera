@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { format } from 'date-fns';
 import {
   DndContext,
   closestCenter,
@@ -27,12 +28,27 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   GripVertical, 
   Plus, 
@@ -43,8 +59,13 @@ import {
   ClipboardList,
   HelpCircle,
   Save,
-  X
+  X,
+  CalendarIcon,
+  Upload,
+  FileText,
+  Link as LinkIcon
 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { editorClient as writeClient } from '@/sanity/lib/client';
 import { safeClient } from '@/sanity/lib/safeClient';
 import { toast } from 'sonner';
@@ -188,37 +209,37 @@ function SortableContentItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-gray-700 px-3 py-2 rounded flex items-center justify-between hover:bg-gray-650 transition-colors"
+      className="bg-zinc-900 px-2 sm:px-3 py-2 rounded flex items-center justify-between hover:bg-zinc-800 transition-colors gap-2"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
         <div
           {...attributes}
           {...listeners}
-          className="cursor-grab hover:cursor-grabbing text-gray-400 hover:text-white flex items-center"
+          className="cursor-grab hover:cursor-grabbing text-gray-400 hover:text-white flex items-center flex-shrink-0"
         >
-          <GripVertical className="w-3 h-3" />
+          <GripVertical className="w-3 h-3 sm:w-4 sm:h-4" />
         </div>
-        <span className="text-xs text-gray-400 w-6">
+        <span className="text-[10px] sm:text-xs text-gray-400 w-4 sm:w-6 flex-shrink-0">
           {('order' in item ? item.order : 0) || index + 1}.
         </span>
-        <span className="text-sm text-white flex-1">
+        <span className="text-xs sm:text-sm text-white truncate flex-1 min-w-0">
           {item.title}
         </span>
+      </div>
+      <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
         {badge && (
-          <Badge variant="outline" className={`text-xs ${colorClasses[color]}`}>
+          <Badge variant="outline" className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 ${colorClasses[color]}`}>
             {badge}
           </Badge>
         )}
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-gray-400">
+        <span className="text-[10px] sm:text-xs text-gray-400">
           {duration}
         </span>
         <div 
-          className="h-6 w-6 p-0 text-gray-400 hover:text-white cursor-pointer flex items-center justify-center"
+          className="h-5 w-5 sm:h-6 sm:w-6 p-0 text-gray-400 hover:text-white cursor-pointer flex items-center justify-center"
           onClick={onEdit}
         >
-          <Edit2 className="w-3 h-3" />
+          <Edit2 className="w-3 h-3 sm:w-4 sm:h-4" />
         </div>
       </div>
     </div>
@@ -244,6 +265,7 @@ function SortableSection({
   onAddContent: (contentType: string, sectionId: string) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editForm, setEditForm] = useState({
     title: section.title,
     description: section.description || ''
@@ -256,7 +278,7 @@ function SortableSection({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: section._id });
+  } = useSortable({ id: `${section._id}-${index}` });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -288,17 +310,17 @@ function SortableSection({
     <div ref={setNodeRef} style={style}>
       <AccordionItem
         value={`section-${index}`}
-        className="border bg-gray-800 border-gray-700 rounded-lg mb-2"
+        className="border bg-black border-gray-700 mb-2"
       >
-        <AccordionTrigger className="group px-4 py-3 hover:no-underline [&>svg]:hidden">
-          <div className="flex w-full items-center justify-between">
-            <div className="flex items-center gap-3">
+        <AccordionTrigger className="group px-2 sm:px-4 py-2 sm:py-3 hover:no-underline [&>svg]:hidden">
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
               <div
                 {...attributes}
                 {...listeners}
-                className="cursor-grab hover:cursor-grabbing text-gray-400 hover:text-white flex items-center"
+                className="cursor-grab hover:cursor-grabbing text-gray-400 hover:text-white flex items-center flex-shrink-0"
               >
-                <GripVertical className="w-4 h-4" />
+                <GripVertical className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               
               {isEditing ? (
@@ -306,7 +328,7 @@ function SortableSection({
                   <Input
                     value={editForm.title}
                     onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
-                    className="bg-gray-700 border-gray-600 text-white text-sm min-w-[200px]"
+                    className="bg-gray-700 border-gray-600 text-white text-sm min-w-[150px] sm:min-w-[200px]"
                     onClick={(e) => e.stopPropagation()}
                   />
                   <div
@@ -314,23 +336,23 @@ function SortableSection({
                       e.stopPropagation();
                       handleSave();
                     }}
-                    className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs cursor-pointer flex items-center"
+                    className="bg-green-600 hover:bg-green-700 text-white p-1.5 sm:px-2.5 sm:py-2 rounded cursor-pointer flex items-center"
                   >
-                    <Save className="w-3 h-3" />
+                    <Save className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
                       setIsEditing(false);
                     }}
-                    className="border border-gray-600 text-gray-300 hover:bg-gray-700 px-2 py-1 rounded text-xs cursor-pointer flex items-center"
+                    className="border border-gray-600 text-gray-300 hover:bg-gray-700 p-1.5 sm:px-2.5 sm:py-2 rounded cursor-pointer flex items-center"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-left text-white font-medium">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+                  <span className="text-left text-white text-xs sm:text-sm font-medium truncate">
                     Section {section.order || index + 1}: {section.title}
                   </span>
                   <div
@@ -338,33 +360,33 @@ function SortableSection({
                       e.stopPropagation();
                       setIsEditing(true);
                     }}
-                    className="text-gray-400 hover:text-white h-6 w-6 p-0 cursor-pointer flex items-center justify-center"
+                    className="text-gray-400 hover:text-white h-5 w-5 sm:h-6 sm:w-6 p-0 cursor-pointer flex items-center justify-center flex-shrink-0"
                   >
-                    <Edit2 className="w-3 h-3" />
+                    <Edit2 className="w-3 h-3 sm:w-4 sm:h-4" />
                   </div>
                 </div>
               )}
             </div>
             
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-white">
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+              <div className="text-[10px] sm:text-sm text-gray-400 whitespace-nowrap">
                 {totalItems} items • {totalDuration}min
               </div>
               <div
                 onClick={(e) => {
                   e.stopPropagation();
-                  onSectionDelete(section._id);
+                  setShowDeleteDialog(true);
                 }}
-                className="text-red-400 hover:text-red-300 hover:bg-red-900/20 h-6 w-6 p-0 cursor-pointer flex items-center justify-center rounded"
+                className="text-red-400 hover:text-red-300 hover:bg-red-900/20 h-6 w-6 sm:h-7 sm:w-7 p-0 cursor-pointer flex items-center justify-center rounded flex-shrink-0"
               >
-                <Trash2 className="w-3 h-3" />
+                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
             </div>
           </div>
         </AccordionTrigger>
         
         <AccordionContent className="p-0">
-          <div className="px-4 pb-4 space-y-3">
+          <div className="px-2 sm:px-4 pb-3 sm:pb-4 space-y-2 sm:space-y-3">
             {/* Section Description */}
             {isEditing && (
               <Textarea
@@ -381,7 +403,7 @@ function SortableSection({
               {/* Lectures Sub-section */}
               {section.lectures && section.lectures.length > 0 && (
                 <AccordionItem value="lectures" className="border-none">
-                  <AccordionTrigger className="py-2 px-3 bg-gray-750 rounded-md text-sm hover:no-underline">
+                  <AccordionTrigger className="py-2 px-3 bg-gray-750 text-sm hover:no-underline">
                     <div className="flex items-center gap-2">
                       <Video className="w-4 h-4 text-blue-400" />
                       <span className="text-blue-400 font-medium">
@@ -414,7 +436,7 @@ function SortableSection({
               {/* Modules Sub-section */}
               {section.modules && section.modules.length > 0 && (
                 <AccordionItem value="modules" className="border-none">
-                  <AccordionTrigger className="py-2 px-3 bg-gray-750 rounded-md text-sm hover:no-underline">
+                  <AccordionTrigger className="py-2 px-3 bg-gray-750 text-sm hover:no-underline">
                     <div className="flex items-center gap-2">
                       <Book className="w-4 h-4 text-green-400" />
                       <span className="text-green-400 font-medium">
@@ -447,7 +469,7 @@ function SortableSection({
               {/* Assignments Sub-section */}
               {section.assignments && section.assignments.length > 0 && (
                 <AccordionItem value="assignments" className="border-none">
-                  <AccordionTrigger className="py-2 px-3 bg-gray-750 rounded-md text-sm hover:no-underline">
+                  <AccordionTrigger className="py-2 px-3 bg-gray-750 text-sm hover:no-underline">
                     <div className="flex items-center gap-2">
                       <ClipboardList className="w-4 h-4 text-orange-400" />
                       <span className="text-orange-400 font-medium">
@@ -480,7 +502,7 @@ function SortableSection({
               {/* Quiz Sub-section */}
               {section.quiz && (
                 <AccordionItem value="quiz" className="border-none">
-                  <AccordionTrigger className="py-2 px-3 bg-gray-750 rounded-md text-sm hover:no-underline">
+                  <AccordionTrigger className="py-2 px-3 bg-gray-750 text-sm hover:no-underline">
                     <div className="flex items-center gap-2">
                       <HelpCircle className="w-4 h-4 text-purple-400" />
                       <span className="text-purple-400 font-medium">
@@ -489,7 +511,7 @@ function SortableSection({
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="pt-2">
-                    <div className="bg-gray-700 px-3 py-2 rounded flex items-center justify-between hover:bg-gray-650 transition-colors">
+                    <div className="bg-zinc-900 px-3 py-2 rounded flex items-center justify-between hover:bg-zinc-800 transition-colors">
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-white">
                           {section.quiz.title}
@@ -547,6 +569,30 @@ function SortableSection({
           </div>
         </AccordionContent>
       </AccordionItem>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="bg-[#111] border border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Delete Section</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              Are you sure you want to delete this section? This action cannot be undone
+              and all content within this section will be removed from the course.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-white">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => onSectionDelete(section._id)}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -572,6 +618,18 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
     title: '',
     description: ''
   });
+
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    if (isEditModalOpen || isAddSectionModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isEditModalOpen, isAddSectionModalOpen]);
   
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -653,8 +711,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
         toast.error('Course not found');
       }
     } catch (error) {
-      console.error('❌ Error fetching course data:', error);
-      toast.error('Failed to load course data');
+toast.error('Failed to load course data');
     } finally {
       setLoading(false);
     }
@@ -668,8 +725,13 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      const oldIndex = sections.findIndex((section) => section._id === active.id);
-      const newIndex = sections.findIndex((section) => section._id === over.id);
+      // Extract index from composite ID (format: sectionId-index)
+      const activeIdStr = String(active.id);
+      const overIdStr = String(over.id);
+      const oldIndex = parseInt(activeIdStr.split('-').pop() || '0');
+      const newIndex = parseInt(overIdStr.split('-').pop() || '0');
+
+      if (isNaN(oldIndex) || isNaN(newIndex) || oldIndex === newIndex) return;
 
       const reorderedSections = arrayMove(sections, oldIndex, newIndex).map((section, index) => ({
         ...section,
@@ -678,16 +740,26 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
 
       setSections(reorderedSections);
       
-      // Update order in Sanity
+      // Update order in Sanity for each section
       try {
         await Promise.all(
           reorderedSections.map(section =>
             writeClient.patch(section._id).set({ order: section.order }).commit()
           )
         );
+        
+        // Also update the course's sections array order
+        if (course) {
+          const reorderedRefs = reorderedSections.map(s => ({
+            _type: 'reference',
+            _ref: s._id,
+            _key: s._id
+          }));
+          await writeClient.patch(course._id).set({ sections: reorderedRefs }).commit();
+        }
+        
         toast.success('Section order updated');
       } catch (error) {
-        console.error('❌ Error updating section order:', error);
         toast.error('Failed to update section order');
         // Revert on error
         fetchCourseData();
@@ -703,8 +775,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
       ));
       toast.success('Section updated');
     } catch (error) {
-      console.error('❌ Error updating section:', error);
-      toast.error('Failed to update section');
+toast.error('Failed to update section');
     }
   };
 
@@ -747,8 +818,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
         );
         toast.success(`${contentType} order updated`);
       } catch (error) {
-        console.error(`❌ Error updating ${contentType} order:`, error);
-        toast.error(`Failed to update ${contentType} order`);
+toast.error(`Failed to update ${contentType} order`);
         fetchCourseData(); // Revert on error
       }
     }
@@ -756,9 +826,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
 
   const handleAddContent = async (contentType: string, sectionId: string) => {
     try {
-      console.log(`🔄 Creating new ${contentType} for section:`, sectionId);
-      
-      let newContent;
+let newContent;
       
       switch (contentType) {
         case 'lecture':
@@ -829,10 +897,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
           toast.error('Unknown content type');
           return;
       }
-
-      console.log(`✅ Created ${contentType}:`, newContent._id);
-
-      // Add content reference to section
+// Add content reference to section
       const section = sections.find(s => s._id === sectionId);
       if (section && newContent) {
         const contentArrayKey = contentType === 'quiz' ? 'quiz' : `${contentType}s`;
@@ -850,17 +915,12 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
             [contentArrayKey]: [...currentRefs, { _type: 'reference', _ref: newContent._id }]
           }).commit();
         }
-        
-        console.log(`✅ Added ${contentType} reference to section`);
-        
-        // Refresh course data
+// Refresh course data
         fetchCourseData();
         toast.success(`New ${contentType} added successfully!`);
       }
     } catch (error: any) {
-      console.error(`❌ Error creating ${contentType}:`, error);
-      
-      // Handle specific permission errors with helpful messages
+// Handle specific permission errors with helpful messages
       if (error.message?.includes('permission') || error.message?.includes('create')) {
         toast.error(`Insufficient permissions to create ${contentType}. Please check your Sanity API token has write/create permissions.`);
       } else if (error.message?.includes('unauthorized')) {
@@ -877,13 +937,9 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
     if (!editingContent) return;
     
     try {
-      console.log('🔄 Saving content:', editingContent.type, editingContent.id);
-      
-      // Update content in Sanity with proper error handling
+// Update content in Sanity with proper error handling
       const result = await writeClient.patch(editingContent.id).set(contentData).commit();
-      console.log('✅ Sanity save result:', result);
-      
-      // Update local state
+// Update local state
       setSections(sections.map(section => {
         if (section._id === editingContent.sectionId) {
           const contentType = editingContent.type + 's'; // lectures, modules, etc.
@@ -902,9 +958,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
       // Refresh data from Sanity to ensure consistency
       setTimeout(() => fetchCourseData(), 1000);
     } catch (error: any) {
-      console.error('❌ Error saving content:', error);
-      
-      // Handle specific permission errors
+// Handle specific permission errors
       if (error.message?.includes('permission')) {
         toast.error('Insufficient permissions. Please check your Sanity API token has write access.');
       } else if (error.message?.includes('unauthorized')) {
@@ -916,10 +970,6 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
   };
 
   const handleSectionDelete = async (sectionId: string) => {
-    if (!confirm('Are you sure you want to delete this section? This will also remove it from the course.')) {
-      return;
-    }
-
     try {
       // Remove section reference from course
       if (course) {
@@ -932,8 +982,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
       setSections(sections.filter(section => section._id !== sectionId));
       toast.success('Section deleted');
     } catch (error) {
-      console.error('❌ Error deleting section:', error);
-      toast.error('Failed to delete section');
+toast.error('Failed to delete section');
     }
   };
 
@@ -972,8 +1021,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
         toast.error('Content not found');
       }
     } catch (error) {
-      console.error('❌ Error fetching content for edit:', error);
-      toast.error('Failed to load content for editing');
+toast.error('Failed to load content for editing');
     }
   };
 
@@ -988,9 +1036,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
     }
 
     try {
-      console.log('🔄 Creating new section:', newSectionData.title);
-      
-      // Create new section in Sanity
+// Create new section in Sanity
       const newSection = await writeClient.create({
         _type: 'courseSection',
         title: newSectionData.title,
@@ -1001,18 +1047,13 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
         modules: [],
         assignments: []
       });
-
-      console.log('✅ Created section:', newSection._id);
-
-      // Add section reference to course
+// Add section reference to course
       if (course) {
         const currentSectionRefs = course.sections?.map(section => ({ _type: 'reference', _ref: section._id })) || [];
         await writeClient.patch(course._id).set({
           sections: [...currentSectionRefs, { _type: 'reference', _ref: newSection._id }]
         }).commit();
-        
-        console.log('✅ Added section reference to course');
-      }
+}
 
       // Reset form and close modal
       setNewSectionData({ title: '', description: '' });
@@ -1022,9 +1063,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
       fetchCourseData();
       toast.success('New section added successfully!');
     } catch (error: any) {
-      console.error('❌ Error creating section:', error);
-      
-      // Handle specific permission errors with helpful messages
+// Handle specific permission errors with helpful messages
       if (error.message?.includes('permission') || error.message?.includes('create')) {
         toast.error('Insufficient permissions to create section. Please check your Sanity API token has write/create permissions.');
       } else if (error.message?.includes('unauthorized')) {
@@ -1039,9 +1078,9 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+          <Spinner className="h-8 w-8 text-white mx-auto mb-4" />
           <p className="text-gray-400">Loading course content...</p>
         </div>
       </div>
@@ -1071,38 +1110,39 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
   return (
     <div className="space-y-6">
       {/* Course Content Statistics */}
-      <Card className="bg-gray-900 border-gray-800">
+      <Card className="bg-black border">
         <CardContent className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
-            <div>
-              <h3 className="text-lg sm:text-xl font-semibold text-white">{course.title}</h3>
-              <p className="text-sm text-gray-400 mt-1">Course Content Management</p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2 sm:gap-4">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white truncate">{course.title}</h3>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">Course Content Management</p>
             </div>
-            <div className="text-xs sm:text-sm text-gray-400">
-              {totalSections} sections • {totalLectures + totalModules + totalAssignments + totalQuizzes} items • {Math.floor(totalDuration / 60)}h {totalDuration % 60}m
+            <div className="text-xs text-gray-400 whitespace-nowrap">
+              {totalSections} sections • {totalLectures + totalModules + totalAssignments + totalQuizzes} items • {Math.floor(totalDuration / 60)}h {(totalDuration % 60).toFixed(0)}m
             </div>
           </div>
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-            <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-blue-400">{totalLectures}</div>
-              <div className="text-xs sm:text-sm text-gray-400">Lectures</div>
+          {/* Stats - Single row on all devices */}
+          <div className="flex items-center justify-between gap-2 overflow-hidden py-2">
+            <div className="text-center flex-shrink-0 min-w-[50px]">
+              <div className="text-lg sm:text-xl md:text-2xl font-bold text-blue-400">{totalLectures}</div>
+              <div className="text-[10px] sm:text-xs text-gray-400">Lectures</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-green-400">{totalModules}</div>
-              <div className="text-xs sm:text-sm text-gray-400">Modules</div>
+            <div className="text-center flex-shrink-0 min-w-[50px]">
+              <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-400">{totalModules}</div>
+              <div className="text-[10px] sm:text-xs text-gray-400">Modules</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-orange-400">{totalAssignments}</div>
-              <div className="text-xs sm:text-sm text-gray-400">Assignments</div>
+            <div className="text-center flex-shrink-0 min-w-[50px]">
+              <div className="text-lg sm:text-xl md:text-2xl font-bold text-orange-400">{totalAssignments}</div>
+              <div className="text-[10px] sm:text-xs text-gray-400">Assignments</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-purple-400">{totalQuizzes}</div>
-              <div className="text-xs sm:text-sm text-gray-400">Quizzes</div>
+            <div className="text-center flex-shrink-0 min-w-[50px]">
+              <div className="text-lg sm:text-xl md:text-2xl font-bold text-purple-400">{totalQuizzes}</div>
+              <div className="text-[10px] sm:text-xs text-gray-400">Quizzes</div>
             </div>
-            <div className="text-center col-span-2 sm:col-span-3 lg:col-span-1">
-              <div className="text-xl sm:text-2xl font-bold text-white">{Math.floor(totalDuration / 60)}h {totalDuration % 60}m</div>
-              <div className="text-xs sm:text-sm text-gray-400">Duration</div>
+            <div className="text-center flex-shrink-0 min-w-[60px]">
+              <div className="text-lg sm:text-xl md:text-2xl font-bold text-white">{Math.floor(totalDuration / 60)}h {(totalDuration % 60).toFixed(0)}m</div>
+              <div className="text-[10px] sm:text-xs text-gray-400">Duration</div>
             </div>
           </div>
         </CardContent>
@@ -1114,7 +1154,10 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <SortableContext items={sections.map(s => s._id)} strategy={verticalListSortingStrategy}>
+        <SortableContext 
+          items={sections.map((s, idx) => `${s._id}-${idx}`)} 
+          strategy={verticalListSortingStrategy}
+        >
           <Accordion
             type="multiple"
             value={expandedSections}
@@ -1123,7 +1166,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
           >
             {sections.map((section, index) => (
               <SortableSection
-                key={section._id}
+                key={`section-${section._id}-${index}`}
                 section={section}
                 index={index}
                 onSectionUpdate={handleSectionUpdate}
@@ -1154,61 +1197,80 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
 
       {/* Edit Content Modal */}
       {isEditModalOpen && editingContent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-lg border border-gray-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-700">
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 md:p-4 overflow-hidden"
+          onClick={() => setIsEditModalOpen(false)}
+          onWheel={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
+          <div 
+            className="bg-[#111] border border-gray-700 w-full max-w-2xl max-h-[95vh] md:max-h-[90vh] rounded-lg flex flex-col my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 md:p-6 border-b border-gray-700 flex-shrink-0">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white capitalize">
+                <h2 className="text-lg md:text-xl font-bold text-white capitalize">
                   Edit {editingContent.type}
                 </h2>
                 <button
                   onClick={() => setIsEditModalOpen(false)}
-                  className="text-gray-400 hover:text-white"
+                  className="text-gray-400 hover:text-white cursor-pointer p-1"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
             
-            <div className="p-6">
-              <ContentEditForm
-                contentType={editingContent.type}
-                contentData={editingContent.data}
-                onSave={handleSaveContent}
-                onCancel={() => setIsEditModalOpen(false)}
-              />
-            </div>
+            <ScrollArea className="flex-1 max-h-[calc(95vh-100px)] md:max-h-[calc(90vh-100px)]">
+              <div className="p-4 md:p-6">
+                <ContentEditForm
+                  contentType={editingContent.type}
+                  contentData={editingContent.data}
+                  onSave={handleSaveContent}
+                  onCancel={() => setIsEditModalOpen(false)}
+                />
+              </div>
+            </ScrollArea>
           </div>
         </div>
       )}
 
       {/* Add Section Modal */}
       {isAddSectionModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-lg border border-gray-700 w-full max-w-md">
-            <div className="p-6 border-b border-gray-700">
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 md:p-4 overflow-y-auto"
+          onClick={() => {
+            setIsAddSectionModalOpen(false);
+            setNewSectionData({ title: '', description: '' });
+          }}
+        >
+          <div 
+            className="bg-[#111] border border-gray-700 w-full max-w-md rounded-lg my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 md:p-6 border-b border-gray-700">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white">Add New Section</h2>
+                <h2 className="text-lg md:text-xl font-bold text-white">Add New Section</h2>
                 <button
                   onClick={() => {
                     setIsAddSectionModalOpen(false);
                     setNewSectionData({ title: '', description: '' });
                   }}
-                  className="text-gray-400 hover:text-white"
+                  className="text-gray-400 hover:text-white cursor-pointer p-1"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-4 md:p-6 space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="section-title" className="text-white">Section Title</Label>
                 <Input
                   id="section-title"
                   value={newSectionData.title}
                   onChange={(e) => setNewSectionData(prev => ({ ...prev, title: e.target.value }))}
-                  className="bg-gray-800 border-gray-600 text-white"
+                  className="bg-black border text-white"
                   placeholder="Enter section title..."
                   required
                 />
@@ -1220,7 +1282,7 @@ export default function CourseContentManager({ courseSlug }: CourseContentManage
                   id="section-description"
                   value={newSectionData.description}
                   onChange={(e) => setNewSectionData(prev => ({ ...prev, description: e.target.value }))}
-                  className="bg-gray-800 border-gray-600 text-white"
+                  className="bg-black border text-white"
                   placeholder="Enter section description..."
                   rows={3}
                 />
@@ -1330,14 +1392,16 @@ function ContentEditForm({
             
             <div className="space-y-2">
               <Label className="text-white">Preview Lecture</Label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
+              <div className="flex items-center space-x-3 pt-2">
+                <Checkbox
+                  id="isPreview"
                   checked={formData.isPreview || false}
-                  onChange={(e) => updateField('isPreview', e.target.checked)}
-                  className="w-4 h-4"
+                  onCheckedChange={(checked) => updateField('isPreview', checked)}
+                  className="border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                 />
-                <span className="text-gray-300">Allow preview without enrollment</span>
+                <label htmlFor="isPreview" className="text-gray-300 text-sm cursor-pointer">
+                  Allow preview without enrollment
+                </label>
               </div>
             </div>
           </div>
@@ -1349,16 +1413,20 @@ function ContentEditForm({
         <>
           <div className="space-y-2">
             <Label htmlFor="moduleType" className="text-white">Module Type</Label>
-            <select
-              id="moduleType"
-              value={formData.moduleType || 'reading'}
-              onChange={(e) => updateField('moduleType', e.target.value)}
-              className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2"
+            <Select
+              value={formData.moduleType || 'pdf'}
+              onValueChange={(value) => updateField('moduleType', value)}
             >
-              <option value="reading">Reading</option>
-              <option value="interactive">Interactive</option>
-              <option value="reference">Reference</option>
-            </select>
+              <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                <SelectValue placeholder="Select module type" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-600">
+                <SelectItem value="pdf">PDF Document</SelectItem>
+                <SelectItem value="content">Rich Text Content</SelectItem>
+                <SelectItem value="link">External Link</SelectItem>
+                <SelectItem value="video">Video Resource</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="space-y-2">
@@ -1372,17 +1440,94 @@ function ContentEditForm({
             />
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="content" className="text-white">Module Content</Label>
-            <Textarea
-              id="content"
-              value={formData.content || ''}
-              onChange={(e) => updateField('content', e.target.value)}
-              className="bg-gray-800 border-gray-600 text-white"
-              rows={8}
-              placeholder="Module content in markdown format..."
-            />
-          </div>
+          {/* File upload for PDF type */}
+          {formData.moduleType === 'pdf' && (
+            <div className="space-y-2">
+              <Label className="text-white">Upload PDF File</Label>
+              <div className="flex items-center gap-4">
+                <label className="flex-1 cursor-pointer">
+                  <div className="flex items-center justify-center gap-2 px-4 py-8 border-2 border-dashed border-gray-600 rounded-lg hover:border-gray-500 transition-colors bg-gray-800/50">
+                    <Upload className="w-5 h-5 text-gray-400" />
+                    <span className="text-gray-400">
+                      {formData.file?.asset?._ref ? 'File uploaded - Click to replace' : 'Click to upload PDF'}
+                    </span>
+                  </div>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        try {
+                          const asset = await writeClient.assets.upload('file', file, {
+                            filename: file.name
+                          });
+                          updateField('file', {
+                            _type: 'file',
+                            asset: {
+                              _type: 'reference',
+                              _ref: asset._id
+                            }
+                          });
+                          toast.success('File uploaded successfully!');
+                        } catch {
+                          toast.error('Failed to upload file');
+                        }
+                      }
+                    }}
+                  />
+                </label>
+                {formData.file?.asset?._ref && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-green-900/30 border border-green-700 rounded">
+                    <FileText className="w-4 h-4 text-green-400" />
+                    <span className="text-green-400 text-sm">PDF Uploaded</span>
+                    <button
+                      type="button"
+                      onClick={() => updateField('file', null)}
+                      className="ml-2 p-1 rounded-full hover:bg-red-500/20 text-green-400 hover:text-red-400 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* External URL for link/video types */}
+          {(formData.moduleType === 'link' || formData.moduleType === 'video') && (
+            <div className="space-y-2">
+              <Label htmlFor="externalUrl" className="text-white">
+                {formData.moduleType === 'video' ? 'Video URL' : 'External Link URL'}
+              </Label>
+              <div className="relative">
+                <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  id="externalUrl"
+                  value={formData.externalUrl || ''}
+                  onChange={(e) => updateField('externalUrl', e.target.value)}
+                  className="bg-gray-800 border-gray-600 text-white pl-10"
+                  placeholder={formData.moduleType === 'video' ? 'https://youtube.com/watch?v=...' : 'https://example.com/resource'}
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* Rich text content placeholder */}
+          {formData.moduleType === 'content' && (
+            <div className="space-y-2">
+              <Label htmlFor="content" className="text-white">Module Content</Label>
+              <Textarea
+                id="content"
+                value={typeof formData.content === 'string' ? formData.content : ''}
+                onChange={(e) => updateField('content', e.target.value)}
+                className="bg-gray-800 border-gray-600 text-white"
+                rows={8}
+                placeholder="Enter module content here..."
+              />
+            </div>
+          )}
         </>
       )}
 
@@ -1402,29 +1547,104 @@ function ContentEditForm({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="dueDate" className="text-white">Due Date</Label>
-              <Input
-                id="dueDate"
-                type="datetime-local"
-                value={formData.dueDate ? new Date(formData.dueDate).toISOString().slice(0, 16) : ''}
-                onChange={(e) => updateField('dueDate', e.target.value ? new Date(e.target.value).toISOString() : null)}
-                className="bg-gray-800 border-gray-600 text-white"
-              />
+              <Label className="text-white">Due Date & Time</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal bg-gray-800 border-gray-600 text-white hover:bg-gray-700"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.dueDate ? (
+                      format(new Date(formData.dueDate), "PPP 'at' HH:mm")
+                    ) : (
+                      <span className="text-gray-400">Select date & time</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-black border-gray-700" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.dueDate ? new Date(formData.dueDate) : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Preserve existing time or default to current time
+                        const existingDate = formData.dueDate ? new Date(formData.dueDate) : new Date();
+                        date.setHours(existingDate.getHours(), existingDate.getMinutes());
+                        updateField('dueDate', date.toISOString());
+                      }
+                    }}
+                    initialFocus
+                    className="bg-black"
+                  />
+                  <div className="border-t border-gray-700 p-3 bg-black">
+                    <Label className="text-white text-sm mb-2 block">Time</Label>
+                    <div className="flex gap-2">
+                      <Select
+                        value={formData.dueDate ? new Date(formData.dueDate).getHours().toString().padStart(2, '0') : '12'}
+                        onValueChange={(hour) => {
+                          const date = formData.dueDate ? new Date(formData.dueDate) : new Date();
+                          date.setHours(parseInt(hour));
+                          updateField('dueDate', date.toISOString());
+                        }}
+                      >
+                        <SelectTrigger className="w-20 bg-black border-gray-700 text-white">
+                          <SelectValue placeholder="HH" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-black border-gray-700">
+                          <ScrollArea className="h-48">
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <SelectItem key={i} value={i.toString().padStart(2, '0')}>
+                                {i.toString().padStart(2, '0')}
+                              </SelectItem>
+                            ))}
+                          </ScrollArea>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-white self-center">:</span>
+                      <Select
+                        value={formData.dueDate ? new Date(formData.dueDate).getMinutes().toString().padStart(2, '0') : '00'}
+                        onValueChange={(minute) => {
+                          const date = formData.dueDate ? new Date(formData.dueDate) : new Date();
+                          date.setMinutes(parseInt(minute));
+                          updateField('dueDate', date.toISOString());
+                        }}
+                      >
+                        <SelectTrigger className="w-20 bg-black border-gray-700 text-white">
+                          <SelectValue placeholder="MM" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-black border-gray-700">
+                          <ScrollArea className="h-48">
+                            {Array.from({ length: 60 }, (_, i) => (
+                              <SelectItem key={i} value={i.toString().padStart(2, '0')}>
+                                {i.toString().padStart(2, '0')}
+                              </SelectItem>
+                            ))}
+                          </ScrollArea>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="submissionType" className="text-white">Submission Type</Label>
-            <select
-              id="submissionType"
+            <Label className="text-white">Submission Type</Label>
+            <Select
               value={formData.submissionType || 'file'}
-              onChange={(e) => updateField('submissionType', e.target.value)}
-              className="w-full bg-gray-800 border border-gray-600 text-white rounded px-3 py-2"
+              onValueChange={(value) => updateField('submissionType', value)}
             >
-              <option value="file">File Upload</option>
-              <option value="text">Text Submission</option>
-              <option value="url">URL Link</option>
-            </select>
+              <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                <SelectValue placeholder="Select submission type" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-600">
+                <SelectItem value="file">File Upload</SelectItem>
+                <SelectItem value="text">Text Submission</SelectItem>
+                <SelectItem value="url">URL Link</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="space-y-2">
@@ -1487,12 +1707,12 @@ function ContentEditForm({
                 }}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                <Plus className="w-3 h-3 mr-1" /> Add Question
+                <Plus className="w-4 h-4 mr-1" /> Add Question
               </Button>
             </div>
             
             {(formData.questions || []).map((question: any, index: number) => (
-              <div key={question.id || index} className="border border-gray-700 rounded-lg p-4 space-y-3">
+              <div key={question.id || index} className="border border-gray-700 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-white">Question {index + 1}</Label>
                   <button

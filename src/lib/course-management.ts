@@ -36,8 +36,6 @@ export interface SanityCourse {
  */
 export async function syncCourseToSupabase(course: SanityCourse) {
   try {
-    console.log('🔄 Syncing course to Supabase:', course.title);
-    
     const courseData = {
       sanity_id: course._id,
       title: course.title,
@@ -60,8 +58,6 @@ export async function syncCourseToSupabase(course: SanityCourse) {
       published_at: course.publishedAt ? new Date(course.publishedAt).toISOString() : null,
     };
 
-    console.log('📝 Course data prepared:', JSON.stringify(courseData, null, 2));
-
     // Use upsert to insert or update
     const { data, error } = await supabase
       .from('courses')
@@ -72,21 +68,12 @@ export async function syncCourseToSupabase(course: SanityCourse) {
       .select();
 
     if (error) {
-      console.error('❌ Supabase error details:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint
-      });
       throw new Error(`Supabase sync error: ${error.message} (Code: ${error.code})`);
     }
 
-    console.log('✅ Course synced successfully:', data);
     return data;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown sync error';
-    console.error('❌ Failed to sync course:', errorMessage);
-    console.error('❌ Full error:', error);
     throw new Error(`Course sync failed: ${errorMessage}`);
   }
 }
@@ -96,8 +83,6 @@ export async function syncCourseToSupabase(course: SanityCourse) {
  */
 export async function getSupabaseCourseId(sanityId: string) {
   try {
-    console.log('🔍 Getting Supabase course ID for Sanity ID:', sanityId);
-    
     const { data, error } = await supabase
       .from('courses')
       .select('id')
@@ -117,7 +102,6 @@ export async function getSupabaseCourseId(sanityId: string) {
         hint: error.hint || 'No hint available'
       };
       
-      console.error('❌ Supabase error getting course ID:', errorDetails);
       throw new Error(`Database error: ${errorDetails.message} (Code: ${errorDetails.code})`);
     }
 
@@ -125,11 +109,9 @@ export async function getSupabaseCourseId(sanityId: string) {
       throw new Error(`Course found but missing ID in Supabase for Sanity ID: ${sanityId}`);
     }
 
-    console.log('✅ Found Supabase course ID:', data.id);
     return data.id;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error getting course ID';
-    console.error('❌ Error getting Supabase course ID:', errorMessage);
     throw new Error(errorMessage);
   }
 }
@@ -139,8 +121,6 @@ export async function getSupabaseCourseId(sanityId: string) {
  */
 export async function enrollUserInCourseBySanityId(userId: string, sanityId: string) {
   try {
-    console.log('🎓 Enrolling user in course:', { userId, sanityId });
-    
     // First get the Supabase course ID
     const supabaseCourseId = await getSupabaseCourseId(sanityId);
     
@@ -148,13 +128,10 @@ export async function enrollUserInCourseBySanityId(userId: string, sanityId: str
       throw new Error('Course not found in database. Please sync course first.');
     }
 
-    console.log('📝 Using Supabase course ID:', supabaseCourseId);
-
     // Then enroll using Supabase ID
     return await enrollUserInCourse(userId, supabaseCourseId);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown enrollment error';
-    console.error('❌ Error enrolling user by Sanity ID:', errorMessage);
     throw new Error(`Enrollment failed: ${errorMessage}`);
   }
 }
@@ -174,7 +151,6 @@ export async function checkUserEnrollmentBySanityId(userId: string, sanityId: st
     // Then check enrollment using Supabase ID
     return await checkUserEnrollment(userId, supabaseCourseId);
   } catch (error) {
-    console.error('Error checking enrollment by Sanity ID:', error);
     return null;
   }
 }
@@ -184,8 +160,6 @@ export async function checkUserEnrollmentBySanityId(userId: string, sanityId: st
  */
 export async function enrollUserInCourse(userId: string, courseId: string) {
   try {
-    console.log('📚 Enrolling user in course:', { userId, courseId });
-    
     const { data, error } = await supabase
       .from('course_enrollments')
       .insert({
@@ -201,19 +175,12 @@ export async function enrollUserInCourse(userId: string, courseId: string) {
       if (error.code === '23505') {
         throw new Error('User is already enrolled in this course');
       }
-      console.error('❌ Enrollment error details:', {
-        code: error.code,
-        message: error.message,
-        details: error.details
-      });
       throw new Error(`Enrollment error: ${error.message} (Code: ${error.code})`);
     }
 
-    console.log('✅ User enrolled successfully:', data);
     return data;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown enrollment error';
-    console.error('❌ Error enrolling user:', errorMessage);
     throw new Error(errorMessage);
   }
 }
@@ -232,7 +199,6 @@ export async function getUserEnrolledCourses(userId: string) {
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error fetching user courses:', error);
     throw error;
   }
 }
@@ -250,7 +216,6 @@ export async function getCourseStats(facultyEmail: string) {
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error fetching course stats:', error);
     throw error;
   }
 }
@@ -270,7 +235,6 @@ export async function getCourseBySlugFromSupabase(slug: string) {
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Error fetching course by slug:', error);
     throw error;
   }
 }
@@ -290,7 +254,6 @@ export async function checkUserEnrollment(userId: string, courseId: string) {
     if (error && error.code !== 'PGRST116') throw error;
     return data;
   } catch (error) {
-    console.error('Error checking enrollment:', error);
     throw error;
   }
 }
@@ -308,7 +271,6 @@ export async function getCourseEnrollmentCount(sanityId: string): Promise<number
       .single();
 
     if (courseError || !course) {
-      console.log('Course not found in Supabase for Sanity ID:', sanityId);
       return 0;
     }
 
@@ -319,13 +281,11 @@ export async function getCourseEnrollmentCount(sanityId: string): Promise<number
       .eq('course_id', course.id);
 
     if (countError) {
-      console.error('Error counting enrollments:', countError);
       return 0;
     }
 
     return count || 0;
   } catch (error) {
-    console.error('Error getting enrollment count:', error);
     return 0;
   }
 }
@@ -342,7 +302,6 @@ export async function getMultipleCourseEnrollmentCounts(sanityIds: string[]): Pr
       .in('sanity_id', sanityIds);
 
     if (coursesError || !courses) {
-      console.log('Error fetching courses from Supabase');
       return {};
     }
 
@@ -360,7 +319,6 @@ export async function getMultipleCourseEnrollmentCounts(sanityIds: string[]): Pr
       .in('course_id', supabaseIds);
 
     if (enrollmentsError) {
-      console.error('Error fetching enrollments:', enrollmentsError);
       return {};
     }
 
@@ -378,7 +336,6 @@ export async function getMultipleCourseEnrollmentCounts(sanityIds: string[]): Pr
 
     return result;
   } catch (error) {
-    console.error('Error getting multiple enrollment counts:', error);
     return {};
   }
 }
@@ -388,8 +345,6 @@ export async function getMultipleCourseEnrollmentCounts(sanityIds: string[]): Pr
  */
 export async function getCourseProgress(userId: string, courseId: string): Promise<number> {
   try {
-    console.log('📊 Getting course progress for user:', userId, 'course:', courseId);
-    
     // First try with Sanity ID
     let { data: enrollment } = await supabase
       .from('course_enrollments')
@@ -420,7 +375,6 @@ export async function getCourseProgress(userId: string, courseId: string): Promi
 
     return enrollment?.progress || 0;
   } catch (error) {
-    console.error('Error getting course progress:', error);
     return 0;
   }
 }
@@ -430,8 +384,6 @@ export async function getCourseProgress(userId: string, courseId: string): Promi
  */
 export async function getMultipleCourseProgress(userId: string, courseIds: string[]): Promise<Record<string, number>> {
   try {
-    console.log('📊 Getting multiple course progress for user:', userId, 'courses:', courseIds);
-    
     if (!userId || courseIds.length === 0) {
       return {};
     }
@@ -443,7 +395,6 @@ export async function getMultipleCourseProgress(userId: string, courseIds: strin
       .in('sanity_id', courseIds);
 
     if (!courses || courses.length === 0) {
-      console.log('📊 No courses found in Supabase for given Sanity IDs');
       return {};
     }
 
@@ -464,7 +415,6 @@ export async function getMultipleCourseProgress(userId: string, courseIds: strin
       .in('course_id', supabaseIds);
 
     if (!enrollments || enrollments.length === 0) {
-      console.log('📊 No enrollments found for user');
       return {};
     }
 
@@ -482,7 +432,6 @@ export async function getMultipleCourseProgress(userId: string, courseIds: strin
 
     return result;
   } catch (error) {
-    console.error('Error getting multiple course progress:', error);
     return {};
   }
 }
@@ -492,8 +441,6 @@ export async function getMultipleCourseProgress(userId: string, courseIds: strin
  */
 export async function updateCourseProgress(userId: string, courseId: string, progress: number): Promise<boolean> {
   try {
-    console.log('📝 Updating course progress:', { userId, courseId, progress });
-    
     // Ensure progress is between 0 and 100
     const clampedProgress = Math.max(0, Math.min(100, progress));
     
@@ -526,7 +473,6 @@ export async function updateCourseProgress(userId: string, courseId: string, pro
     }
 
     if (!enrollment) {
-      console.error('No enrollment found for user and course');
       return false;
     }
 
@@ -540,14 +486,11 @@ export async function updateCourseProgress(userId: string, courseId: string, pro
       .eq('id', enrollment.id);
 
     if (error) {
-      console.error('Error updating course progress:', error);
       return false;
     }
 
-    console.log('✅ Course progress updated successfully');
     return true;
   } catch (error) {
-    console.error('Error updating course progress:', error);
     return false;
   }
 }

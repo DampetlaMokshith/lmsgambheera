@@ -63,8 +63,7 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      console.error("Error marking item as complete:", error);
-      return NextResponse.json(
+return NextResponse.json(
         { error: "Failed to mark item as complete", details: error.message },
         { status: 500 }
       );
@@ -77,8 +76,7 @@ export async function POST(req: Request) {
       data,
     });
   } catch (error) {
-    console.error("Unexpected error in mark-complete:", error);
-    return NextResponse.json(
+return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
@@ -112,8 +110,7 @@ export async function DELETE(req: Request) {
       .eq("item_type", item_type);
 
     if (error) {
-      console.error("Error unmarking item:", error);
-      return NextResponse.json(
+return NextResponse.json(
         { error: "Failed to unmark item", details: error.message },
         { status: 500 }
       );
@@ -124,8 +121,7 @@ export async function DELETE(req: Request) {
       message: "Item unmarked successfully",
     });
   } catch (error) {
-    console.error("Unexpected error in DELETE mark-complete:", error);
-    return NextResponse.json(
+return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );

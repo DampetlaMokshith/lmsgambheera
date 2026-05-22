@@ -69,7 +69,7 @@ export default function VideoPlayer({ videoUrl, title, className = "" }: VideoPl
   // YouTube Player
   if (platform === 'youtube' && videoId) {
     return (
-      <div className={`relative aspect-video bg-gray-900 rounded-lg overflow-hidden ${className}`}>
+      <div className={`relative aspect-video bg-black overflow-hidden ${className}`}>
         <iframe
           src={getYouTubeEmbedUrl(videoId)}
           title={title || 'Video'}
@@ -85,7 +85,7 @@ export default function VideoPlayer({ videoUrl, title, className = "" }: VideoPl
   // Vimeo Player
   if (platform === 'vimeo' && videoId) {
     return (
-      <div className={`relative aspect-video bg-gray-900 rounded-lg overflow-hidden ${className}`}>
+      <div className={`relative aspect-video bg-black overflow-hidden ${className}`}>
         <iframe
           src={getVimeoEmbedUrl(videoId)}
           title={title || 'Video'}
@@ -100,7 +100,7 @@ export default function VideoPlayer({ videoUrl, title, className = "" }: VideoPl
 
   // Direct Video File
   return (
-    <div className={`relative aspect-video bg-gray-900 rounded-lg overflow-hidden ${className}`}>
+    <div className={`relative aspect-video bg-black overflow-hidden ${className}`}>
       <video
         controls
         className="w-full h-full"

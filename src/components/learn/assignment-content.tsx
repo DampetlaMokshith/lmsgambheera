@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileUpload } from '@/components/ui/file-upload';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { 
   Clipboard, 
   Calendar,
@@ -12,7 +15,10 @@ import {
   AlertCircle,
   FileText,
   Upload,
-  Scale
+  Scale,
+  X,
+  Link as LinkIcon,
+  Type
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -77,6 +83,8 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([]);
+  const [textSubmission, setTextSubmission] = useState('');
+  const [urlSubmission, setUrlSubmission] = useState('');
 
   useEffect(() => {
     // Check if already marked as read
@@ -102,15 +110,13 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
       const urls = assignment.attachments.map(att => {
         // First try the url from the query
         if (att.asset.url) {
-          console.log('Assignment file URL from Sanity:', att.asset.url);
-          return att.asset.url;
+return att.asset.url;
         }
         // Fallback to manual construction
         const ref = att.asset._ref;
         const [, id, extension] = ref.split('-');
         const url = `https://cdn.sanity.io/files/${projectId}/${dataset}/${id}.${extension}`;
-        console.log('Assignment file URL (constructed):', url);
-        return url;
+return url;
       });
       setAttachmentUrls(urls);
     }
@@ -141,8 +147,7 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
       setIsMarkedAsRead(true);
       toast.success('Assignment marked as read!');
     } catch (error) {
-      console.error('Error marking assignment as read:', error);
-      toast.error('Failed to update progress');
+toast.error('Failed to update progress');
     } finally {
       setIsLoading(false);
     }
@@ -209,16 +214,14 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
       const result = await response.json();
       
       if (!response.ok) {
-        console.error('Server response:', result);
-        throw new Error(result.error || 'Failed to mark assignment as complete');
+throw new Error(result.error || 'Failed to mark assignment as complete');
       }
 
       setIsMarkedAsRead(true);
       toast.success('Assignment submitted successfully!');
       // TODO: Implement actual file upload to storage
     } catch (error) {
-      console.error('Error submitting assignment:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to submit assignment';
+const errorMessage = error instanceof Error ? error.message : 'Failed to submit assignment';
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
@@ -242,13 +245,13 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
             </h1>
             <div className="flex flex-wrap items-center gap-3">
               {assignment.totalPoints && (
-                <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30">
+                <Badge variant="outline" className="bg-white text-black border-white">
                   <Clipboard className="w-3 h-3 mr-1" />
                   {assignment.totalPoints} points
                 </Badge>
               )}
               {assignment.difficulty && (
-                <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+                <Badge variant="outline" className="bg-white text-black border-white">
                   {assignment.difficulty}
                 </Badge>
               )}
@@ -258,7 +261,7 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
                   className={`${
                     isOverdue 
                       ? 'bg-red-500/10 text-red-400 border-red-500/30' 
-                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : 'bg-white text-black border-white'
                   }`}
                 >
                   <Calendar className="w-3 h-3 mr-1" />
@@ -269,8 +272,8 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
             </div>
           </div>
           
-          {/* Mark as Read Button */}
-          {userId && (
+          {/* Mark as Read Button - Hidden if overdue */}
+          {userId && !isOverdue && (
             <div className="flex-shrink-0">
               <Button
                 onClick={handleMarkAsRead}
@@ -301,7 +304,7 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
 
         {/* Overdue Warning */}
         {isOverdue && (
-          <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/30">
             <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
             <p className="text-red-400 text-sm">
               This assignment is past its due date. Please contact your instructor if you need an extension.
@@ -312,10 +315,10 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
 
       {/* Description */}
       {description && (
-        <Card className="bg-gray-900 border-gray-700">
+        <Card className="bg-black">
           <CardHeader>
             <CardTitle className="text-lg text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-orange-400" />
+              <FileText className="w-5 h-5 text-white" />
               Description
             </CardTitle>
           </CardHeader>
@@ -329,10 +332,10 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
 
       {/* Instructions */}
       {instructions && (
-        <Card className="bg-gray-900 border-gray-700">
+        <Card className="bg-black">
           <CardHeader>
             <CardTitle className="text-lg text-white flex items-center gap-2">
-              <Clipboard className="w-5 h-5 text-orange-400" />
+              <Clipboard className="w-5 h-5 text-red" />
               Instructions
             </CardTitle>
           </CardHeader>
@@ -346,7 +349,7 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
 
       {/* Grading Rubric */}
       {rubric && (
-        <Card className="bg-gray-900 border-gray-700">
+        <Card className="bg-black">
           <CardHeader>
             <CardTitle className="text-lg text-white flex items-center gap-2">
               <Scale className="w-5 h-5 text-emerald-400" />
@@ -363,10 +366,10 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
 
       {/* Assignment Files & Resources */}
       {attachmentUrls.length > 0 && (
-        <Card className="bg-gray-900 border-gray-700">
+        <Card className="bg-black ">
           <CardHeader>
             <CardTitle className="text-lg text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-orange-400" />
+              <FileText className="w-5 h-5 text-white" />
               Assignment Files & Resources
             </CardTitle>
           </CardHeader>
@@ -383,9 +386,9 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
                   rel="noopener noreferrer"
                   className="block"
                 >
-                  <div className="bg-black border-2 border-gray-700 hover:border-orange-500 rounded-lg p-6 transition-all cursor-pointer group">
+                  <div className="bg-black hover:border-orange-500 p-6 transition-all cursor-pointer group">
                     <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-16 h-16 bg-orange-500/20 rounded-lg flex items-center justify-center group-hover:bg-orange-500/30 transition-colors">
+                      <div className="flex-shrink-0 w-16 h-16 bg-orange-500/20 flex items-center justify-center group-hover:bg-orange-500/30 transition-colors">
                         <FileText className="w-8 h-8 text-orange-400 group-hover:text-orange-300" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -407,75 +410,138 @@ export default function AssignmentContent({ assignment, courseId, userId }: Assi
 
       {/* Submission Section */}
       {userId && (
-        <Card className="bg-gray-900 border-gray-700">
+        <Card className="bg-black">
           <CardHeader>
             <CardTitle className="text-lg text-white flex items-center gap-2">
-              <Upload className="w-5 h-5 text-emerald-400" />
+              <Upload className="w-5 h-5 text-white" />
               Submit Assignment
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Submission Requirements */}
-            <div className="space-y-4">
-              {assignment.totalPoints && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Total Points:</span>
-                  <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30">
-                    {assignment.totalPoints} points
-                  </Badge>
+            {/* Submission Requirements - only show for file uploads */}
+            {(assignment.submissionType === 'file' || !assignment.submissionType) && (
+              <div className="space-y-4"> 
+                {assignment.allowedFileTypes && assignment.allowedFileTypes.length > 0 && (
+                  <div className="text-sm">
+                    <p className="text-gray-400 mb-2">Allowed file types:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {assignment.allowedFileTypes.map((type, index) => (
+                        <Badge key={index} variant="outline" className="bg-black text-white border">
+                          .{type}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {assignment.maxFileSize && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Maximum file size:</span>
+                    <Badge variant="outline" className="bg-white/5 text-white border">
+                      {assignment.maxFileSize} MB
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* File Upload Area - shown for 'file' submission type */}
+            {(assignment.submissionType === 'file' || !assignment.submissionType) && (
+              <>
+                <div className="border border-dashed border-white/50 bg-black">
+                  <FileUpload onChange={handleFileUpload} />
                 </div>
-              )}
-              
-              {assignment.allowedFileTypes && assignment.allowedFileTypes.length > 0 && (
-                <div className="text-sm">
-                  <p className="text-gray-400 mb-2">Allowed file types:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {assignment.allowedFileTypes.map((type, index) => (
-                      <Badge key={index} variant="outline" className="bg-white/5 text-white border-white/20">
-                        .{type}
-                      </Badge>
+
+                {/* Uploaded Files Display */}
+                {uploadedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-400">Files ready to submit:</p>
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-emerald-500/10 border border-emerald-500/30">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <FileText className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          <span className="text-sm text-white truncate">{file.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs text-emerald-400">
+                            {(file.size / (1024 * 1024)).toFixed(2)} MB
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const newFiles = uploadedFiles.filter((_, i) => i !== index);
+                              setUploadedFiles(newFiles);
+                            }}
+                            className="h-6 w-6 p-0 hover:bg-red-500/20 text-gray-400 hover:text-red-400"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
                     ))}
                   </div>
+                )}
+              </>
+            )}
+
+            {/* Text Submission Area - shown for 'text' submission type */}
+            {assignment.submissionType === 'text' && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-gray-400 text-sm">
+                  <Type className="w-4 h-4" />
+                  <span>Text Submission</span>
                 </div>
-              )}
+                <Textarea
+                  value={textSubmission}
+                  onChange={(e) => setTextSubmission(e.target.value)}
+                  placeholder="Enter your submission here..."
+                  className="min-h-[200px] bg-gray-900 border-gray-700 text-white placeholder:text-gray-500 focus:border-emerald-500"
+                />
+                {textSubmission && (
+                  <p className="text-xs text-gray-400 text-right">
+                    {textSubmission.length} characters
+                  </p>
+                )}
+              </div>
+            )}
 
-              {assignment.maxFileSize && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Maximum file size:</span>
-                  <Badge variant="outline" className="bg-white/5 text-white border-white/20">
-                    {assignment.maxFileSize} MB
-                  </Badge>
+            {/* URL Submission Area - shown for 'url' or 'link' submission type */}
+            {(assignment.submissionType === 'url' || assignment.submissionType === 'link') && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-gray-400 text-sm">
+                  <LinkIcon className="w-4 h-4" />
+                  <span>URL Submission</span>
                 </div>
-              )}
-            </div>
-
-            {/* File Upload Area */}
-            <div className="border border-dashed border-gray-700 rounded-lg bg-black/30">
-              <FileUpload onChange={handleFileUpload} />
-            </div>
-
-            {/* Uploaded Files Display */}
-            {uploadedFiles.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm text-gray-400">Files ready to submit:</p>
-                {uploadedFiles.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-4 h-4 text-emerald-400" />
-                      <span className="text-sm text-white truncate">{file.name}</span>
-                    </div>
-                    <span className="text-xs text-emerald-400">
-                      {(file.size / (1024 * 1024)).toFixed(2)} MB
-                    </span>
-                  </div>
-                ))}
+                <div className="relative">
+                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Input
+                    type="url"
+                    value={urlSubmission}
+                    onChange={(e) => setUrlSubmission(e.target.value)}
+                    placeholder="https://example.com/your-submission"
+                    className="pl-10 bg-gray-900 border-gray-700 text-white placeholder:text-gray-500 focus:border-emerald-500"
+                  />
+                </div>
+                {urlSubmission && (
+                  <p className="text-xs text-emerald-400">
+                    URL will be submitted: {urlSubmission}
+                  </p>
+                )}
               </div>
             )}
             
             {/* Submit Button */}
             <Button 
               onClick={handleSubmit}
-              disabled={uploadedFiles.length === 0 || Boolean(isOverdue)}
+              disabled={
+                Boolean(isOverdue) || 
+                (
+                  (assignment.submissionType === 'file' || !assignment.submissionType) && uploadedFiles.length === 0
+                ) ||
+                (assignment.submissionType === 'text' && !textSubmission.trim()) ||
+                ((assignment.submissionType === 'url' || assignment.submissionType === 'link') && !urlSubmission.trim())
+              }
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
               size="lg"
             >

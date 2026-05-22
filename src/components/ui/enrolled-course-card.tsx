@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CourseProgressBar } from "@/components/learn/course-progress-bar";
-import { Play } from "lucide-react";
+import { Play, Award } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { urlFor } from "@/sanity/lib/image";
 import { supabase } from "@/lib/supabase";
+import CertificateGenerator from "@/components/certificates/certificate-generator";
 
 interface EnrolledCourseCardProps {
   _id: string;
@@ -49,22 +50,50 @@ export default function EnrolledCourseCard({
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [actualProgress, setActualProgress] = useState(progress);
+  const [certificateDialog, setCertificateDialog] = useState(false);
+  const [user, setUser] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [enrolledAt, setEnrolledAt] = useState<string>('');
 
   // Fetch user and actual progress
   useEffect(() => {
     const fetchUserAndProgress = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const authUser = session.user;
+          // Set user data
+          setUser({
+            id: authUser.id,
+            name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Student',
+            email: authUser.email || ''
+          });
+
           // Fetch actual progress from API
-          const response = await fetch(`/api/progress/${_id}?userId=${user.id}`);
+          const response = await fetch(`/api/progress/${_id}?userId=${authUser.id}`);
           if (response.ok) {
             const progressData = await response.json();
             setActualProgress(progressData.progress_percentage || 0);
           }
+
+          // Fetch enrollment data from API (uses service role to bypass RLS)
+          const enrollmentsResponse = await fetch(`/api/enrollments`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          });
+          if (enrollmentsResponse.ok) {
+            const enrollmentsData = await enrollmentsResponse.json();
+            // Find the enrollment for this course
+            const enrollment = enrollmentsData.enrollments?.find(
+              (e: { sanityId: string }) => e.sanityId === _id
+            );
+            if (enrollment?.enrolledAt) {
+              setEnrolledAt(enrollment.enrolledAt);
+            }
+          }
         }
-      } catch (error) {
-        console.error('Error fetching progress:', error);
+      } catch {
+        // Error fetching user/progress
       }
     };
 
@@ -80,7 +109,7 @@ export default function EnrolledCourseCard({
   return (
     <div
       className={`
-        group relative bg-black border rounded-xl overflow-hidden
+        group relative bg-black border overflow-hidden
         transition-all duration-300 ease-in-out transform hover:shadow-lg hover:shadow-accent
         ${isHovered ? 'scale-[1.02] -translate-y-1' : ''}
       `}
@@ -155,9 +184,7 @@ export default function EnrolledCourseCard({
           </div>
 
           {/* Progress percentage */}
-          <div className="text-xs text-gray-300 font-semibold">
-            {Math.round(actualProgress)}%
-          </div>
+          
         </div>
 
         {/* Progress Bar */}
@@ -167,21 +194,48 @@ export default function EnrolledCourseCard({
           className="pt-1"
         />
 
-        {/* Continue Course Button */}
-        <Link href={`/courses/learn/${_id}`} className="block">
-          <Button 
-            className={`
-              w-full bg-green-600 hover:bg-green-700
-              text-white font-semibold py-2 rounded-lg
-              transform transition-all duration-300 ease-in-out
-              ${isHovered ? 'shadow-lg shadow-green-500/25' : ''}
-              group-hover:scale-[1.02]
-            `}
-          >
-            <Play className="w-3 h-3 mr-2 fill-current" />
-            Continue Course
-          </Button>
-        </Link>
+        {/* Continue Course / View Certificate Button */}
+        {actualProgress === 100 ? (
+          <>
+            <Button 
+              onClick={() => setCertificateDialog(true)}
+              className={`
+                w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700
+                text-white font-semibold py-2
+                transform transition-all duration-300 ease-in-out
+                ${isHovered ? 'shadow-lg shadow-yellow-500/25' : ''}
+                group-hover:scale-[1.02]
+              `}
+            >
+              <Award className="w-3 h-3 mr-2" />
+              View Certificate
+            </Button>
+            {user && (
+              <CertificateGenerator
+                open={certificateDialog}
+                onOpenChange={setCertificateDialog}
+                studentName={user.name}
+                courseName={title}
+                completionDate={enrolledAt}
+              />
+            )}
+          </>
+        ) : (
+          <Link href={`/courses/learn/${_id}`} className="block">
+            <Button 
+              className={`
+                w-full bg-green-600 hover:bg-green-700
+                text-white font-semibold py-2
+                transform transition-all duration-300 ease-in-out
+                ${isHovered ? 'shadow-lg shadow-green-500/25' : ''}
+                group-hover:scale-[1.02]
+              `}
+            >
+              <Play className="w-3 h-3 mr-2 fill-current" />
+              Continue Course
+            </Button>
+          </Link>
+        )}
       </div>
     </div>
   );

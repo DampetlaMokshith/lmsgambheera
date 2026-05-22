@@ -50,7 +50,6 @@ export class ProgressTracker {
       if (error) throw error;
       return { totalLectures, totalModules, totalAssignments, totalQuizzes };
     } catch (error) {
-      console.error('Error initializing course progress:', error);
       throw error;
     }
   }
@@ -77,7 +76,6 @@ export class ProgressTracker {
         total_quizzes: 0
       };
     } catch (error) {
-      console.error('Error fetching course progress:', error);
       return {
         overall_percentage: 0,
         completed_lectures: 0,
@@ -149,7 +147,6 @@ export class ProgressTracker {
         quizProgress
       };
     } catch (error) {
-      console.error('Error fetching progress:', error);
       return {
         lectureProgress: {},
         moduleProgress: {},
@@ -174,7 +171,6 @@ export class ProgressTracker {
       if (error) throw error;
       return true;
     } catch (error) {
-      console.error('Error marking lecture as watched:', error);
       return false;
     }
   }
@@ -194,7 +190,6 @@ export class ProgressTracker {
       if (error) throw error;
       return true;
     } catch (error) {
-      console.error('Error marking module as read:', error);
       return false;
     }
   }
@@ -214,7 +209,6 @@ export class ProgressTracker {
       if (error) throw error;
       return true;
     } catch (error) {
-      console.error('Error marking assignment as read:', error);
       return false;
     }
   }
@@ -237,7 +231,6 @@ export class ProgressTracker {
       if (error) throw error;
       return true;
     } catch (error) {
-      console.error('Error marking quiz as completed:', error);
       return false;
     }
   }

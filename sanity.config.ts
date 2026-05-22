@@ -46,7 +46,7 @@ export default defineConfig({
   },
   
   // Studio configuration
-  title: 'LMS Gambheera Studio',
+  title: 'THREADLMS Studio',
   
   // Environment configuration
   useCdn: false, // Set to false for development

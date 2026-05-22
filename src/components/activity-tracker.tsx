@@ -28,7 +28,6 @@ export const useActivityTracker = ({
         const { data: { session } } = await supabase.auth.getSession();
         return session?.user?.id || null;
       } catch (error) {
-        console.error('Error getting user session:', error);
         return null;
       }
     };
@@ -53,10 +52,10 @@ export const useActivityTracker = ({
 
         const result = await response.json();
         if (!result.success) {
-          console.error('Failed to track activity:', result.error);
+          // Failed to track activity
         }
       } catch (error) {
-        console.error('Error tracking activity:', error);
+        // Error tracking activity
       }
     };
 

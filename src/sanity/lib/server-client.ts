@@ -21,10 +21,8 @@ export async function validateWritePermissions() {
     // Try a simple query to test permissions
     const testQuery = `*[_type == "course"][0...1] { _id, title }`;
     await serverWriteClient.fetch(testQuery);
-    console.log('✅ Write client permissions validated');
     return true;
   } catch (error) {
-    console.error('❌ Write client permissions validation failed:', error);
     return false;
   }
 }
@@ -32,8 +30,6 @@ export async function validateWritePermissions() {
 // Enhanced patch function with better error handling
 export async function patchCourse(courseId: string, updateData: Record<string, unknown>) {
   try {
-    console.log('🔄 Attempting to patch course:', courseId, updateData);
-    
     // First validate permissions
     const hasPermissions = await validateWritePermissions();
     if (!hasPermissions) {
@@ -46,11 +42,8 @@ export async function patchCourse(courseId: string, updateData: Record<string, u
       .set(updateData)
       .commit();
     
-    console.log('✅ Course patch successful:', result);
     return result;
   } catch (error) {
-    console.error('❌ Course patch failed:', error);
-    
     // Enhanced error reporting
     if (error instanceof Error) {
       if (error.message.includes('Insufficient permissions')) {

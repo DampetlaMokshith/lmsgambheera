@@ -106,7 +106,7 @@ export default function CourseLearningNav({
                       <button
                         key={lecture._id}
                         onClick={() => onLectureSelect(lecture, section)}
-                        className={`block w-full text-left p-3 rounded-lg mb-2 transition-colors ${
+                        className={`block w-full text-left p-3 mb-2 transition-colors ${
                           currentLecture?._id === lecture._id 
                             ? 'bg-blue-600 text-white' 
                             : 'bg-gray-800 text-gray-300 hover:bg-gray-700'

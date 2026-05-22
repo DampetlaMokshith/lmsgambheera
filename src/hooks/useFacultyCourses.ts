@@ -85,15 +85,11 @@ export function useFacultyCourses() {
     }
 
     try {
-      console.log('🔍 Fetching faculty courses for:', email);
-      
       // Try courses query with retry mechanism
       let coursesData;
       try {
         coursesData = await safeClient.fetch(FACULTY_COURSES_QUERY, { email });
-        console.log('✅ Faculty courses fetched successfully:', (coursesData as Course[])?.length || 0);
       } catch (courseError) {
-        console.error('❌ Failed to fetch courses:', courseError);
         // Fallback to basic query without faculty relation
         try {
           coursesData = await safeClient.fetch(
@@ -116,9 +112,7 @@ export function useFacultyCourses() {
             }`,
             {}
           );
-          console.log('✅ Fallback courses query successful');
         } catch (fallbackError) {
-          console.error('❌ Fallback query also failed:', fallbackError);
           throw new Error('Failed to fetch courses from Sanity');
         }
       }
@@ -130,11 +124,9 @@ export function useFacultyCourses() {
           const courseIds = (coursesData as Course[]).map((course: Course) => course._id).filter(Boolean);
           if (courseIds.length > 0) {
             enrollmentData = await getMultipleCourseEnrollmentCounts(courseIds);
-            console.log('✅ Enrollment data fetched successfully');
           }
         }
       } catch (enrollmentError) {
-        console.warn('⚠️ Failed to fetch enrollment counts, continuing without them:', enrollmentError);
         // Don't throw error, just continue without enrollment counts
       }
 
@@ -151,7 +143,6 @@ export function useFacultyCourses() {
 
       return result;
     } catch (error) {
-      console.error('Error fetching faculty courses:', error);
       throw error;
     }
   }, []);

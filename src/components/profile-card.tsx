@@ -41,17 +41,10 @@ export default function ProfileCard({ user }: ProfileCardProps) {
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   const [showGenderDialog, setShowGenderDialog] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // Debug logging
-  console.log('Current background image:', backgroundImage);
-  console.log('Current time of day:', timeOfDay);
-  console.log('Show gender dialog:', showGenderDialog);
-  console.log('User profile:', userProfile);
+  const [avatarKey, setAvatarKey] = useState(0); // Force re-render of avatar
 
   const fetchUserProfile = useCallback(async () => {
     try {
-      console.log('Fetching user profile for user ID:', user.id);
-      
       // First fetch user profile from database
       const { data: profileData, error } = await supabase
         .from('user_profiles')
@@ -59,24 +52,18 @@ export default function ProfileCard({ user }: ProfileCardProps) {
         .eq('user_id', user.id)
         .single();
       
-      console.log('Database profile data:', profileData);
-      console.log('Database error:', error);
-      
       if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
-        console.error('Error fetching profile from database:', error);
+        // Error fetching profile from database
       }
       
       // Fallback to metadata and localStorage
       const metadata = user.user_metadata;
-      console.log('User metadata:', metadata);
       
       // Check for cached gender in localStorage
       const cachedGender = localStorage.getItem(`user-gender-${user.id}`) as 'male' | 'female' | null;
-      console.log('Cached gender:', cachedGender);
       
       // Check if gender is available from signup form in metadata
       const formGender = metadata?.gender as 'male' | 'female' | undefined;
-      console.log('Form gender from metadata:', formGender);
       
       // Create profile with database data, falling back to metadata and cache
       const newProfile: UserProfile = {
@@ -89,20 +76,17 @@ export default function ProfileCard({ user }: ProfileCardProps) {
         department: profileData?.department,
       };
       
-      console.log('Final profile created:', newProfile);
       setUserProfile(newProfile);
       
       // If user came from Google OAuth and no gender is available, show dialog
       // Check if the user signed up with Google (has iss property in metadata)
       const isGoogleUser = metadata?.iss && metadata.iss.includes('accounts.google.com');
-      console.log('Is Google user:', isGoogleUser, 'Has gender (from DB, cache, or form):', !!(profileData?.gender || cachedGender || formGender));
       
       if (isGoogleUser && !profileData?.gender && !cachedGender && !formGender) {
-        console.log('Showing gender dialog for Google user');
         setShowGenderDialog(true);
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      // Error fetching profile
     } finally {
       setLoading(false);
     }
@@ -110,15 +94,22 @@ export default function ProfileCard({ user }: ProfileCardProps) {
 
   useEffect(() => {
     fetchUserProfile();
+    
+    // Listen for avatar updates
+    const handleAvatarUpdate = () => {
+      setAvatarKey(prev => prev + 1); // Force re-render
+    };
+    window.addEventListener('avatarUpdated', handleAvatarUpdate);
+    
+    return () => {
+      window.removeEventListener('avatarUpdated', handleAvatarUpdate);
+    };
   }, [fetchUserProfile]);
 
   const updateGender = async (gender: 'male' | 'female') => {
-    console.log('Updating gender to:', gender);
-    
     try {
       // Cache gender in localStorage for immediate avatar update
       localStorage.setItem(`user-gender-${user.id}`, gender);
-      console.log('Gender cached in localStorage');
       
       // Update local state immediately
       setUserProfile(prev => ({ ...prev, gender }));
@@ -135,18 +126,21 @@ export default function ProfileCard({ user }: ProfileCardProps) {
         });
       
       if (error) {
-        console.error('Error saving gender to database:', error);
-      } else {
-        console.log('Gender saved to database successfully');
+        // Error saving gender to database
       }
     } catch (error) {
-      console.error('Error updating gender:', error);
+      // Error updating gender
     }
-    
-    console.log('Gender updated successfully to:', gender);
   };
 
   const getAvatarImage = () => {
+    // Check if user has selected avatar in localStorage
+    const savedAvatar = localStorage.getItem(`user-avatar-${user.id}`);
+    if (savedAvatar) {
+      return `/${savedAvatar}`;
+    }
+    
+    // Fallback to default based on gender
     if (userProfile.gender === 'male') {
       return '/bitmoji_boy.png';
     } else if (userProfile.gender === 'female') {
@@ -170,7 +164,7 @@ export default function ProfileCard({ user }: ProfileCardProps) {
 
   if (loading) {
     return (
-      <div className="bg-black rounded-xl overflow-hidden">
+      <div className="bg-black overflow-hidden">
         <div className="h-32 bg-accent animate-pulse"></div>
         <div className="p-6">
           <div className="flex items-start space-x-4">
@@ -193,7 +187,7 @@ export default function ProfileCard({ user }: ProfileCardProps) {
       )}
       
       {/* Profile Card */}
-      <div className="bg-black border rounded-xl overflow-hidden shadow-lg relative z-10">
+      <div className="bg-black border overflow-hidden shadow-lg relative z-10">
         {/* Cover Image */}
         <div 
           className="relative h-32 sm:h-40 md:h-48 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500"
@@ -213,7 +207,7 @@ export default function ProfileCard({ user }: ProfileCardProps) {
           <div className="flex flex-col items-start -mt-12 sm:-mt-20">
             {/* Avatar */}
             <div className="relative mb-4">
-              <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full bg-black overflow-hidden flex items-center justify-center">
+              <div key={avatarKey} className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full bg-black overflow-hidden flex items-center justify-center">
                 {getAvatarImage() ? (
                   <Image
                     src={getAvatarImage()!}
@@ -221,6 +215,8 @@ export default function ProfileCard({ user }: ProfileCardProps) {
                     width={160}
                     height={160}
                     className="w-full h-full object-cover"
+                    priority
+                    quality={90}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-700">
@@ -249,7 +245,7 @@ export default function ProfileCard({ user }: ProfileCardProps) {
                 {/* Edit icon beside name */}
                 <button
                   onClick={() => router.push('/profile')}
-                  className="p-1 rounded-full hover:bg-gray-800 transition-colors duration-200 group"
+                  className="p-1 rounded-full transition-colors duration-200 group cursor-pointer"
                   aria-label="Edit Profile"
                 >
                   <Edit2 className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors duration-200" />
@@ -304,10 +300,9 @@ export default function ProfileCard({ user }: ProfileCardProps) {
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => {
-                      console.log('Male button clicked!');
-                      updateGender('male');
+updateGender('male');
                     }}
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-1 border-black hover:border-white transition-all duration-200 overflow-hidden bg-black hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-1 border-black hover:border-white transition-all duration-200 overflow-hidden bg-black hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                   >
                     <Image
                       src="/bitmoji_boy.png"
@@ -329,10 +324,9 @@ export default function ProfileCard({ user }: ProfileCardProps) {
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => {
-                      console.log('Female button clicked!');
-                      updateGender('female');
+updateGender('female');
                     }}
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-1 border-black hover:border-white transition-all duration-200 overflow-hidden bg-black hover:scale-105 focus:outline-none focus:ring-2 focus:ring-pink-500"
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-1 border-black hover:border-white transition-all duration-200 overflow-hidden bg-black hover:scale-105 focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer"
                   >
                     <Image
                       src="/bitmoji_girl.png"

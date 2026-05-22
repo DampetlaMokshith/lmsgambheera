@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { supabase } from '@/lib/supabase';
+import { Spinner } from '@/components/ui/spinner';
 
 interface ActivityData {
   date: string;
@@ -79,8 +80,7 @@ const ContributionChart: React.FC<ContributionChartProps> = ({ userId }) => {
           // Set default stats for fallback
           setStats({ totalDays: 0, totalHours: 0, avgHours: 0 });
         }
-      } catch (error) {
-        console.error('Error fetching contribution data:', error);
+      } catch {
         // Fallback to sample data
         const sampleData = generateSampleData();
         setContributionData(sampleData);
@@ -95,8 +95,7 @@ const ContributionChart: React.FC<ContributionChartProps> = ({ userId }) => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         return session?.user?.id || null;
-      } catch (error) {
-        console.error('Error getting user session:', error);
+      } catch {
         return null;
       }
     };
@@ -136,10 +135,11 @@ const ContributionChart: React.FC<ContributionChartProps> = ({ userId }) => {
 
   if (loading) {
     return (
-      <div className="w-full bg-black border rounded-xl">
+      <div className="w-full bg-black border">
         <div className="p-6">
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+          <div className="flex items-center justify-center h-32 gap-3">
+            <Spinner className="size-5" />
+            <p className="text-sm text-gray-400 font-medium">Loading contribution data...</p>
           </div>
         </div>
       </div>
@@ -147,7 +147,7 @@ const ContributionChart: React.FC<ContributionChartProps> = ({ userId }) => {
   }
 
   return (
-    <div className="w-full bg-black border  rounded-xl">
+    <div className="w-full bg-black border">
       <div className="p-3 sm:p-4 lg:p-6">
         {/* Stats Row */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">

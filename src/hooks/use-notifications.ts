@@ -1,65 +1,104 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
-interface Notification {
+export interface Notification {
   id: string;
+  user_id: string;
   type: string;
   title: string;
   message: string;
-  data: Record<string, unknown>;
+  data: {
+    icon?: string;
+    actionUrl?: string;
+    actionText?: string;
+    courseTitle?: string;
+    courseSlug?: string;
+    courseSanityId?: string;
+    facultyName?: string;
+    studentName?: string;
+    isDynamic?: boolean;
+    [key: string]: unknown;
+  };
   read: boolean;
   created_at: string;
+  updated_at: string;
 }
 
-export function useNotifications() {
+interface UseNotificationsOptions {
+  role?: 'student' | 'faculty';
+  autoRefreshInterval?: number; // in milliseconds
+}
+
+export function useNotifications(options: UseNotificationsOptions = {}) {
+  const { role = 'student', autoRefreshInterval = 60000 } = options;
+  
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
-  const fetchNotifications = async () => {
+  // Fetch notifications from API
+  const fetchNotifications = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user || !session?.access_token) {
         setNotifications([]);
         setUnreadCount(0);
         setLoading(false);
         return;
       }
 
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      setUserId(session.user.id);
+      setAccessToken(session.access_token);
 
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        return;
+      const response = await fetch(`/api/notifications?role=${role}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch notifications');
       }
 
-      const notificationData = data || [];
-      setNotifications(notificationData);
-      setUnreadCount(notificationData.filter(n => !n.read).length);
+      const data = await response.json();
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unreadCount || 0);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [role]);
 
-  const markAsRead = async (notificationId: string) => {
+  // Mark single notification as read
+  const markAsRead = useCallback(async (notificationId: string) => {
+    // Handle dynamic notifications (stored in local state only)
+    if (notificationId.startsWith('dynamic_')) {
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      return true;
+    }
+
+    if (!accessToken) return false;
+
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId);
+      const response = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ notificationId }),
+      });
 
-      if (error) {
-        console.error('Error marking notification as read:', error);
-        return false;
+      if (!response.ok) {
+        throw new Error('Failed to mark as read');
       }
 
       setNotifications(prev =>
@@ -69,170 +108,92 @@ export function useNotifications() {
       return true;
     } catch (error) {
       console.error('Error marking notification as read:', error);
-      return false;
+      return false;;
     }
-  };
+  }, []);
 
-  const markAllAsRead = async () => {
+  // Mark all notifications as read
+  const markAllAsRead = useCallback(async () => {
+    if (!userId || !accessToken) return false;
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
+      const response = await fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ markAllRead: true }),
+      });
 
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', user.id)
-        .eq('read', false);
-
-      if (error) {
-        console.error('Error marking all notifications as read:', error);
-        return false;
+      if (!response.ok) {
+        throw new Error('Failed to mark all as read');
       }
 
-      setNotifications(prev =>
-        prev.map(n => ({ ...n, read: true }))
-      );
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
       return true;
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
       return false;
     }
-  };
+  }, [userId, accessToken]);
 
-  const createNotification = async (
-    type: string,
-    title: string,
-    message: string,
-    data: Record<string, unknown> = {}
-  ) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
-
-      const { error } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: user.id,
-          type,
-          title,
-          message,
-          data
-        });
-
-      if (error) {
-        console.error('Error creating notification:', error);
-        return false;
-      }
-
-      // Refresh notifications
-      fetchNotifications();
-      return true;
-    } catch (error) {
-      console.error('Error creating notification:', error);
-      return false;
-    }
-  };
-
-  // Auto-refresh notifications
+  // Initial fetch and setup auto-refresh
   useEffect(() => {
     fetchNotifications();
 
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-        },
-        () => {
-          fetchNotifications();
-        }
-      )
-      .subscribe();
+    // Set up auto-refresh
+    const intervalId = setInterval(fetchNotifications, autoRefreshInterval);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+    return () => clearInterval(intervalId);
+  }, [fetchNotifications, autoRefreshInterval]);
+
+  // Format relative time
+  const formatTime = (timestamp: string) => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diff = now.getTime() - time.getTime();
+
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    
+    return time.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: time.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    });
+  };
+
+  // Format full date and time
+  const formatFullDateTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   return {
     notifications,
     loading,
     unreadCount,
+    fetchNotifications,
     markAsRead,
     markAllAsRead,
-    createNotification,
-    refreshNotifications: fetchNotifications
+    formatTime,
+    formatFullDateTime,
   };
 }
 
-// Utility functions for creating specific notification types
-export const notificationUtils = {
-  createWelcomeSignup: async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    return await supabase.rpc('create_welcome_notification');
-  },
-
-  createWelcomeBack: async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    return await supabase.rpc('create_welcome_back_notification', {
-      user_uuid: user.id
-    });
-  },
-
-  createCourseNotification: async (
-    type: 'course_added' | 'course_updated' | 'course_enrolled' | 'lecture_released',
-    courseTitle: string,
-    courseId?: string
-  ) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    return await supabase.rpc('create_course_notification', {
-      user_uuid: user.id,
-      notification_type: type,
-      course_title: courseTitle,
-      course_id: courseId
-    });
-  },
-
-  createDiscussionNotification: async (
-    courseTitle: string,
-    authorName: string,
-    courseId?: string
-  ) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    return await supabase.rpc('create_discussion_notification', {
-      user_uuid: user.id,
-      course_title: courseTitle,
-      author_name: authorName,
-      course_id: courseId
-    });
-  },
-
-  createTodoNotification: async (
-    assignmentTitle: string,
-    courseTitle: string,
-    assignmentId?: string
-  ) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    return await supabase.rpc('create_todo_notification', {
-      user_uuid: user.id,
-      assignment_title: assignmentTitle,
-      course_title: courseTitle,
-      assignment_id: assignmentId
-    });
-  }
-};
+export default useNotifications;

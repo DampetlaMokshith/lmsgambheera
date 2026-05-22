@@ -42,16 +42,12 @@ export async function PATCH(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
-      return NextResponse.json(
+return NextResponse.json(
         { error: 'Invalid authentication token' },
         { status: 401 }
       );
     }
-
-    console.log('🔐 Authenticated user:', user.email);
-
-    // First, verify that the course belongs to this faculty member using regular client
+// First, verify that the course belongs to this faculty member using regular client
     const existingCourse = await writeClient.fetch(
       `*[_type == "course" && _id == $courseId && faculty->email == $email][0]`,
       { courseId, email: user.email }
@@ -63,41 +59,27 @@ export async function PATCH(request: NextRequest) {
         { status: 403 }
       );
     }
-
-    console.log('📚 Course found, proceeding with update:', existingCourse.title);
-
-    // Add updatedAt timestamp
+// Add updatedAt timestamp
     const finalUpdateData = {
       ...updateData,
       updatedAt: new Date().toISOString()
     };
-
-    console.log('💾 Attempting to update course with write token...');
-    console.log('📋 Update data:', finalUpdateData);
-    
-    let result;
+let result;
     try {
       // Try with the API write client first
       result = await apiWriteClient
         .patch(courseId)
         .set(finalUpdateData)
         .commit();
-      
-      console.log('✅ Course update successful with API client:', result);
-    } catch (apiError) {
-      console.error('❌ API client failed, trying writeClient:', apiError);
-      
-      // Fallback to the regular writeClient
+} catch (apiError) {
+// Fallback to the regular writeClient
       try {
         result = await writeClient
           .patch(courseId)
           .set(finalUpdateData)
           .commit();
-        
-        console.log('✅ Course update successful with writeClient:', result);
-      } catch (writeError) {
-        console.error('❌ Both clients failed:', writeError);
-        throw writeError;
+} catch (writeError) {
+throw writeError;
       }
     }
 
@@ -108,9 +90,7 @@ export async function PATCH(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ Error updating course:', error);
-    
-    // Enhanced error handling
+// Enhanced error handling
     if (error instanceof Error) {
       if (error.message.includes('Insufficient permissions') || error.message.includes('permission "update" required')) {
         return NextResponse.json(
@@ -145,6 +125,129 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(
       { 
         error: 'Internal server error', 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        code: 'INTERNAL_ERROR'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const courseId = searchParams.get('courseId');
+    
+    if (!courseId) {
+      return NextResponse.json(
+        { error: 'Course ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Missing or invalid authorization header' },
+        { status: 401 }
+      );
+    }
+
+    // Extract the token
+    const accessToken = authHeader.substring(7);
+    
+    // Verify the session with Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Invalid authentication token' },
+        { status: 401 }
+      );
+    }
+
+    // First, verify that the course belongs to this faculty member
+    const existingCourse = await writeClient.fetch(
+      `*[_type == "course" && _id == $courseId && faculty->email == $email][0]{
+        _id,
+        title,
+        slug,
+        sections[]->{ _id }
+      }`,
+      { courseId, email: user.email }
+    );
+
+    if (!existingCourse) {
+      return NextResponse.json(
+        { error: 'Course not found or you do not have permission to delete this course' },
+        { status: 403 }
+      );
+    }
+
+    // Step 1: Delete course from Supabase first (this will cascade delete enrollments due to FK constraint)
+    const { error: supabaseError } = await supabase
+      .from('courses')
+      .delete()
+      .eq('sanity_id', courseId);
+
+    if (supabaseError) {
+      console.error('Supabase deletion error:', supabaseError);
+      // Continue with Sanity deletion even if Supabase fails
+    }
+
+    // Step 2: Delete all sections associated with the course from Sanity
+    if (existingCourse.sections && existingCourse.sections.length > 0) {
+      const sectionIds = existingCourse.sections.map((s: { _id: string }) => s._id).filter(Boolean);
+      if (sectionIds.length > 0) {
+        try {
+          // Delete sections one by one
+          for (const sectionId of sectionIds) {
+            await apiWriteClient.delete(sectionId);
+          }
+        } catch (sectionError) {
+          console.error('Error deleting sections:', sectionError);
+          // Continue with course deletion
+        }
+      }
+    }
+
+    // Step 3: Delete the course from Sanity
+    try {
+      await apiWriteClient.delete(courseId);
+    } catch (apiError) {
+      // Fallback to writeClient
+      try {
+        await writeClient.delete(courseId);
+      } catch (writeError) {
+        throw writeError;
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Course deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Course deletion error:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Insufficient permissions') || error.message.includes('permission "delete" required')) {
+        return NextResponse.json(
+          { 
+            error: 'Insufficient permissions to delete course', 
+            details: 'The API token does not have delete permissions.',
+            code: 'INSUFFICIENT_PERMISSIONS'
+          },
+          { status: 403 }
+        );
+      }
+    }
+    
+    return NextResponse.json(
+      { 
+        error: 'Failed to delete course', 
         details: error instanceof Error ? error.message : 'Unknown error',
         code: 'INTERNAL_ERROR'
       },

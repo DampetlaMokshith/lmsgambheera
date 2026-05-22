@@ -28,7 +28,22 @@ const nextConfig: NextConfig = {
         pathname: '**',
       },
     ],
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 60,
   },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error'],
+    } : false,
+  },
+  experimental: {
+    optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react', 'framer-motion', '@tabler/icons-react'],
+  },
+  compress: true,
+  poweredByHeader: false,
+  reactStrictMode: true,
   eslint: {
     // Warning: This allows production builds to successfully complete even if
     // your project has ESLint errors.

@@ -63,7 +63,6 @@ export function useCourseProgress(
       const data = await response.json();
       setProgress(data);
     } catch (err) {
-      console.error('Error fetching progress:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -105,7 +104,6 @@ export function useCourseProgress(
       
       return result;
     } catch (err) {
-      console.error('Error marking item complete:', err);
       throw err;
     }
   };

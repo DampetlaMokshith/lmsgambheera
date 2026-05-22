@@ -23,6 +23,10 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
   const handleGoogleAuth = async () => {
     try {
       setLoading(true);
+      
+      // Store user role before OAuth redirect
+      localStorage.setItem('userRole', 'student');
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -37,12 +41,10 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
       });
       
       if (error) {
-        console.error('Error with Google OAuth:', error.message);
-        alert('Error signing in with Google');
+alert('Error signing in with Google');
       }
     } catch (error) {
-      console.error('Google auth error:', error);
-      alert('Something went wrong with Google sign-in');
+alert('Something went wrong with Google sign-in');
     } finally {
       setLoading(false);
     }
@@ -78,11 +80,12 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
       if (error) {
         alert(error.message);
       } else {
-        router.push('/dashboard');
+        // Store user role after successful login
+        localStorage.setItem('userRole', 'student');
+router.push('/dashboard');
       }
     } catch (error) {
-      console.error('Auth error:', error);
-      alert('Something went wrong');
+alert('Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -97,7 +100,7 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
       >
         <div className="p-8 pb-6">
           <div>
-            <h1 className="mb-1 mt-4 text-xl font-semibold text-white">Sign In to LMS Gambheera</h1>
+            <h1 className="mb-1 mt-4 text-xl font-semibold text-white">Sign In to THREADLMS</h1>
             <p className="text-sm text-gray-400">Welcome back! Sign in to continue</p>
           </div>
 
@@ -185,7 +188,7 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-white"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-white cursor-pointer"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (

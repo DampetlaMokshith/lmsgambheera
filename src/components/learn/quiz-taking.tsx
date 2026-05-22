@@ -18,7 +18,10 @@ import {
   Clock, 
   XCircle,
   Trophy,
-  AlertCircle
+  AlertCircle,
+  Pause,
+  Play,
+  LogOut
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -39,11 +42,13 @@ interface QuizData {
   passingScore?: number;
   questions: QuizQuestion[];
   showCorrectAnswers?: boolean;
+  allowRetakes?: boolean;
 }
 
 interface QuizTakingProps {
   quiz: QuizData;
   courseId: string;
+  courseName: string;
   userId: string;
   onExit: () => void;
 }
@@ -70,19 +75,30 @@ function getSafeText(text: string | Record<string, unknown>[] | Record<string, u
   return '';
 }
 
-export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakingProps) {
+export default function QuizTaking({ quiz, courseId, courseName, userId, onExit }: QuizTakingProps) {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<(number | null)[]>(new Array(quiz.questions.length).fill(null));
   const [visitedQuestions, setVisitedQuestions] = useState<Set<number>>(new Set([0]));
   const [timeRemaining, setTimeRemaining] = useState((quiz.timeLimit || 30) * 60); // Convert minutes to seconds
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
+  const [showExitDialog, setShowExitDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [timeTaken, setTimeTaken] = useState(0);
   const [score, setScore] = useState(0);
   const [percentage, setPercentage] = useState(0);
 
   const submitQuiz = useCallback(async () => {
+    if (isSubmitting || hasSubmitted) return;
+    
     setIsSubmitting(true);
+    setHasSubmitted(true);
+    
+    // Capture the exact time taken at the moment of submission
+    const finalTimeTaken = (quiz.timeLimit || 30) * 60 - timeRemaining;
+    setTimeTaken(finalTimeTaken);
 
     try {
       // Calculate score
@@ -100,24 +116,44 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
       setScore(calculatedScore);
       setPercentage(calculatedPercentage);
 
-      // Save quiz attempt (optional - for historical tracking)
+      // Save quiz attempt with comprehensive data
       try {
+        const questionsAnswered = answers.filter(a => a !== null).length;
+        
         await supabase
           .from('user_quiz_attempts')
           .insert({
             user_id: userId,
             quiz_id: quiz._id,
             course_id: courseId,
-            answers: answers,
+            course_name: courseName,
+            
+            // Quiz Configuration
+            total_questions: quiz.questions.length,
+            time_limit_minutes: quiz.timeLimit || 30,
+            allows_retakes: quiz.allowRetakes || false,
+            passing_score_percentage: quiz.passingScore || 60,
+            
+            // Attempt Details
+            questions_answered: questionsAnswered,
+            questions_correct: calculatedScore,
             score: calculatedScore,
             percentage: calculatedPercentage,
             passed: passed,
-            time_taken: (quiz.timeLimit || 30) * 60 - timeRemaining,
+            
+            // Time Tracking
+            time_taken: finalTimeTaken,
+            time_remaining: timeRemaining,
+            
+            // Answer Data
+            answers: answers,
+            
+            // Timestamps
+            attempted_at: new Date().toISOString(),
             submitted_at: new Date().toISOString()
           });
       } catch (attemptError) {
-        console.warn('Could not save quiz attempt to legacy table:', attemptError);
-        // This is non-critical, continue
+// This is non-critical, continue
       }
 
       // Update quiz progress (optional - for historical tracking)
@@ -148,8 +184,7 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
             last_attempted_at: new Date().toISOString()
           });
       } catch (progressError) {
-        console.warn('Could not save quiz progress to legacy table:', progressError);
-        // This is non-critical, continue
+// This is non-critical, continue
       }
 
       // Mark quiz as complete in the new progress system
@@ -167,11 +202,10 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
           }),
         });
       } catch (progressErr) {
-        console.error('Error marking quiz complete:', progressErr);
-      }
+}
 
-      // Show confetti if passed
-      if (passed) {
+      // Show confetti if passed (only once)
+      if (passed && !showResults) {
         confetti({
           particleCount: 100,
           spread: 70,
@@ -183,20 +217,23 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
       setShowSubmitDialog(false);
 
     } catch (error) {
-      console.error('Error submitting quiz:', error);
-      toast.error('Failed to submit quiz. Please try again.');
+toast.error('Failed to submit quiz. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
-  }, [answers, quiz, userId, courseId, timeRemaining]);
+  }, [answers, quiz, userId, courseId, courseName, timeRemaining, hasSubmitted, isSubmitting, showResults]);
 
   const handleAutoSubmit = useCallback(async () => {
-    toast.error('Time is up! Submitting your quiz automatically...');
-    await submitQuiz();
-  }, [submitQuiz]);
+    if (!hasSubmitted) {
+      toast.error('Time is up! Submitting your quiz automatically...');
+      await submitQuiz();
+    }
+  }, [submitQuiz, hasSubmitted]);
 
   // Timer logic
   useEffect(() => {
+    if (isPaused || hasSubmitted) return;
+    
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
@@ -209,7 +246,7 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [handleAutoSubmit]);
+  }, [handleAutoSubmit, isPaused, hasSubmitted]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -268,8 +305,8 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
     const passed = percentage >= (quiz.passingScore || 60);
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl bg-gray-900 border-gray-700">
+      <div className="fixed inset-0 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl bg-black border">
           <CardContent className="p-8">
             <div className="text-center space-y-6">
               {/* Icon */}
@@ -319,7 +356,7 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
                 <div className="text-center">
                   <p className="text-gray-400 text-sm mb-1">Time Taken</p>
                   <p className="text-white font-semibold">
-                    {formatTime((quiz.timeLimit || 30) * 60 - timeRemaining)}
+                    {formatTime(timeTaken)}
                   </p>
                 </div>
                 <div className="text-center">
@@ -354,11 +391,11 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
     <div className="fixed inset-0 bg-black/95 backdrop-blur-sm z-50 overflow-auto">
       <div className="min-h-screen flex">
         {/* Left Sidebar - Question Navigation */}
-        <div className="w-64 bg-gray-900 border-r border-gray-700 p-6 flex flex-col">
+        <div className="w-64 bg-black border-r border p-6 flex flex-col">
           {/* Timer */}
           <div className="mb-6">
-            <div className={`text-center p-4 rounded-lg ${
-              timeRemaining < 60 ? 'bg-red-500/20 border border-red-500' : 'bg-blue-500/20 border border-blue-500'
+            <div className={`text-center p-4 ${
+              timeRemaining < 60 ? 'bg-red-500/20 border' : 'bg-blue-500/20 border '
             }`}>
               <Clock className={`w-6 h-6 mx-auto mb-2 ${
                 timeRemaining < 60 ? 'text-red-400' : 'text-blue-400'
@@ -369,6 +406,38 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
                 {formatTime(timeRemaining)}
               </div>
               <p className="text-xs text-gray-400 mt-1">Time Remaining</p>
+            </div>
+            
+            {/* Timer Controls */}
+            <div className="mt-3 space-y-2">
+              <Button
+                onClick={() => setIsPaused(!isPaused)}
+                variant="outline"
+                className="w-full bg-black text-white hover:bg-gray-800 border-gray-700"
+                size="sm"
+              >
+                {isPaused ? (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Resume Timer
+                  </>
+                ) : (
+                  <>
+                    <Pause className="w-4 h-4 mr-2" />
+                    Pause Timer
+                  </>
+                )}
+              </Button>
+              
+              <Button
+                onClick={() => setShowExitDialog(true)}
+                variant="outline"
+                className="w-full bg-red-500/10 text-red-400 hover:bg-red-500/20 border-red-500/30"
+                size="sm"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Exit Quiz
+              </Button>
             </div>
           </div>
 
@@ -401,7 +470,7 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
                     key={index}
                     onClick={() => handleQuestionNavigate(index)}
                     className={`
-                      aspect-square rounded-lg font-semibold text-sm
+                      aspect-square font-semibold text-sm
                       transition-all hover:scale-110
                       ${getStatusColor(status)}
                     `}
@@ -437,14 +506,14 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold text-white">{quiz.title}</h1>
-                <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+                <Badge variant="outline" className="bg-black text-white border-blue-500/30">
                   Question {currentQuestion + 1} / {quiz.questions.length}
                 </Badge>
               </div>
             </div>
 
             {/* Question Card */}
-            <Card className="bg-gray-900 border-gray-700 mb-6">
+            <Card className="bg-black mb-6">
               <CardContent className="p-8">
                 {/* Question Text */}
                 <div className="mb-8">
@@ -460,10 +529,10 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
                       key={index}
                       onClick={() => handleAnswerSelect(index)}
                       className={`
-                        w-full text-left p-6 rounded-lg border-2 transition-all
+                        w-full text-left p-6 border-2 transition-all cursor-pointer
                         ${answers[currentQuestion] === index
                           ? 'bg-blue-500/20 border-blue-500 text-white'
-                          : 'bg-black border-gray-700 text-gray-300 hover:border-blue-500/50'
+                          : 'bg-black border text-gray-300 hover:border-white/5'
                         }
                       `}
                     >
@@ -514,7 +583,7 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
 
       {/* Submit Confirmation Dialog */}
       <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
-        <AlertDialogContent className="bg-gray-900 border-gray-700">
+        <AlertDialogContent className="bg-black border">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-yellow-400" />
@@ -543,6 +612,36 @@ export default function QuizTaking({ quiz, courseId, userId, onExit }: QuizTakin
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Quiz'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Exit Confirmation Dialog */}
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent className="bg-gray-900 border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white flex items-center gap-2">
+              <XCircle className="w-5 h-5 text-red-400" />
+              Exit Quiz?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-gray-300">
+                <p>Are you sure you want to exit the quiz? You will receive a score of 0%.</p>
+                <br />
+                <p className="text-red-400 font-semibold">Warning: Your progress will not be saved!</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleExitFullscreen}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Exit Quiz
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

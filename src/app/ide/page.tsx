@@ -90,42 +90,26 @@ button:hover {
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }`,
   javascript: `// JavaScript IDE with Modern ES6+ Features
-console.log("🚀 Welcome to JavaScript IDE!");
-console.log("=" + "=".repeat(30));
-
 // Modern JavaScript Features
 const greeting = (name = "Developer") => {
     return \`Hello, \${name}! Welcome to the JavaScript IDE! 🎉\`;
 };
-
-console.log(greeting("JavaScript"));
-
 // Async/Await Example
 const fetchData = async () => {
     try {
-        console.log("📡 Simulating API call...");
-        await new Promise(resolve => setTimeout(resolve, 1000));
+await new Promise(resolve => setTimeout(resolve, 1000));
         return { message: "Data fetched successfully!", status: 200 };
     } catch (error) {
-        console.error("Error:", error);
-    }
+}
 };
 
 // Array Methods & Destructuring
 const numbers = [1, 2, 3, 4, 5];
 const [first, second, ...rest] = numbers;
-
-console.log(\`First: \${first}, Second: \${second}, Rest: [\${rest.join(", ")}]\`);
-
 // Map, Filter, Reduce
 const squared = numbers.map(n => n ** 2);
 const evens = numbers.filter(n => n % 2 === 0);
 const sum = numbers.reduce((acc, n) => acc + n, 0);
-
-console.log("Squared:", squared);
-console.log("Even numbers:", evens);
-console.log("Sum:", sum);
-
 // Object Methods
 const person = {
     name: "John",
@@ -134,9 +118,6 @@ const person = {
         return \`Hi, I'm \${this.name} and I'm \${this.age} years old!\`;
     }
 };
-
-console.log(person.greet());
-
 // Classes
 class Calculator {
     constructor() {
@@ -160,20 +141,15 @@ class Calculator {
 
 const calc = new Calculator();
 const result = calc.add(5).multiply(3).getValue();
-console.log("Calculator result:", result);
-
 // DOM Interaction (for HTML)
 function showMessage() {
     alert("Hello from JavaScript! 👋");
-    console.log("Button clicked!");
 }
 
 // Modern Promise handling
 fetchData().then(data => {
-    console.log("✅", data);
 });
-
-console.log("\\n✨ Ready to code! Edit this and see the magic!");`,
+`,
   python: `# Python IDE with Skulpt
 print("🚀 Welcome to Python IDE!")
 print("=" * 30)
@@ -236,8 +212,7 @@ export default function IDEPage() {
       try {
         setCode(JSON.parse(savedCode));
       } catch {
-        console.log('Failed to load saved code');
-      }
+}
     }
   }, []);
 
@@ -298,11 +273,11 @@ export default function IDEPage() {
 
   const runJavaScript = () => {
     try {
-      // Capture console.log output
-      const originalLog = console.log;
       const logs: string[] = [];
       
-      console.log = (...args) => {
+      // Capture console output
+      const originalLog = console.log;
+      console.log = (...args: unknown[]) => {
         logs.push(args.map(arg => 
           typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
         ).join(' '));
@@ -312,12 +287,12 @@ export default function IDEPage() {
       const func = new Function(code.javascript);
       func();
       
-      // Restore original console.log
+      // Restore console.log
       console.log = originalLog;
       
       setOutput(logs.join('\n') || 'JavaScript executed successfully!');
-    } catch (error) {
-      setOutput(`Error: ${(error as Error).message}`);
+    } catch (err) {
+      setOutput(`Error: ${(err as Error).message}`);
     }
   };
 
@@ -369,7 +344,7 @@ export default function IDEPage() {
           <button
             key={fileType}
             onClick={() => setCurrentFile(fileType)}
-            className={`px-4 py-2 flex items-center gap-2 text-sm border-r border-[#3c3c3c] transition-colors ${
+            className={`px-4 py-2 flex items-center gap-2 text-sm border-r border-[#3c3c3c] transition-colors cursor-pointer ${
               currentFile === fileType
                 ? 'bg-[#1e1e1e] text-white border-t-2 border-t-[#0078d4]'
                 : 'bg-[#2d2d30] text-[#cccccc] hover:text-white hover:bg-[#2a2d2e]'

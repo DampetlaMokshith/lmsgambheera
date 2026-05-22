@@ -64,13 +64,12 @@ export default function CourseDiscussion({ courseId, userId }: CourseDiscussionP
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('Error fetching messages:', error);
         return;
       }
 
       setMessages(data || []);
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      // Error fetching messages
     } finally {
       setLoading(false);
     }
@@ -175,8 +174,7 @@ export default function CourseDiscussion({ courseId, userId }: CourseDiscussionP
 
       await fetchMessages();
     } catch (error) {
-      console.error('Error submitting message:', error);
-    } finally {
+} finally {
       setSubmitting(false);
     }
   };
@@ -191,8 +189,7 @@ export default function CourseDiscussion({ courseId, userId }: CourseDiscussionP
       if (error) throw error;
       await fetchMessages();
     } catch (error) {
-      console.error('Error deleting message:', error);
-    }
+}
   };
 
   const startEditing = (message: DiscussionMessage) => {
@@ -231,7 +228,7 @@ export default function CourseDiscussion({ courseId, userId }: CourseDiscussionP
 
     return (
       <div key={message.id} className={`${isReply ? 'ml-8 mt-2' : 'mb-4'}`}>
-        <div className="bg-gray-800 rounded-lg p-4">
+        <div className="bg-gray-800 p-4">
           {/* Message Header */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
@@ -341,7 +338,7 @@ export default function CourseDiscussion({ courseId, userId }: CourseDiscussionP
       <h3 className="text-lg sm:text-xl font-semibold text-white mb-3">Discussion</h3>
       
       {/* Message Composer */}
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+      <div className="bg-gray-900 border border-gray-700 p-4">
         {replyingTo && (
           <div className="mb-3 p-2 bg-gray-800 rounded text-sm text-gray-300">
             Replying to message...
@@ -437,7 +434,7 @@ export default function CourseDiscussion({ courseId, userId }: CourseDiscussionP
       </div>
 
       {/* Messages List */}
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 max-h-[600px] overflow-y-auto">
+      <div className="bg-gray-900 border border-gray-700 p-4 max-h-[600px] overflow-y-auto">
         {loading ? (
           <div className="text-center text-gray-400 py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>

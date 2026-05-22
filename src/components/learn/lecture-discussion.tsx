@@ -67,14 +67,12 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('Error fetching lecture messages:', error);
-        return;
+return;
       }
 
       setMessages(data || []);
     } catch (error) {
-      console.error('Error fetching lecture messages:', error);
-    } finally {
+} finally {
       setLoading(false);
     }
   }, [courseId, lectureId]);
@@ -178,8 +176,7 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
 
       await fetchMessages();
     } catch (error) {
-      console.error('Error submitting message:', error);
-    } finally {
+} finally {
       setSubmitting(false);
     }
   };
@@ -194,8 +191,7 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
       if (error) throw error;
       await fetchMessages();
     } catch (error) {
-      console.error('Error deleting message:', error);
-    }
+}
   };
 
   const startEditing = (message: DiscussionMessage) => {
@@ -234,7 +230,7 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
 
     return (
       <div key={message.id} className={`${isReply ? 'ml-6 mt-2' : 'mb-3'}`}>
-        <div className="bg-gray-800 rounded-lg p-3">
+        <div className="bg-gray-800 p-3">
           {/* Message Header */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
@@ -257,7 +253,7 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
                     <MoreHorizontal className="h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="bg-gray-700 border-gray-600">
+                <DropdownMenuContent className="bg-black w-auto border-gray-600">
                   <DropdownMenuItem 
                     onClick={() => startEditing(message)}
                     className="text-white hover:bg-gray-600 text-xs"
@@ -344,9 +340,9 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
       <h3 className="text-lg font-semibold text-white mb-3">Lecture Discussion</h3>
       
       {/* Message Composer */}
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 mb-4">
+      <div className="bg-black border p-3 mb-4">
         {replyingTo && (
-          <div className="mb-2 p-2 bg-gray-800 rounded text-xs text-gray-300">
+          <div className="mb-2 p-2 bg-black rounded text-xs text-gray-300">
             Replying to message...
             <Button 
               onClick={() => setReplyingTo(null)} 
@@ -360,13 +356,13 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
         )}
         
         {/* Formatting Toolbar */}
-        <div className="flex flex-wrap gap-1 mb-2 p-2 bg-gray-800 rounded">
+        <div className="flex flex-wrap gap-1 mb-2 p-2 bg-black rounded">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => handleFormatting('bold')}
-            className="text-gray-300 hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
+            className="text-gray-300 cursor-pointer hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
           >
             <Bold className="h-3 w-3" />
           </Button>
@@ -375,7 +371,7 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
             variant="ghost"
             size="sm"
             onClick={() => handleFormatting('italic')}
-            className="text-gray-300 hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
+            className="text-gray-300 cursor-pointer hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
           >
             <Italic className="h-3 w-3" />
           </Button>
@@ -384,7 +380,7 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
             variant="ghost"
             size="sm"
             onClick={() => handleFormatting('list')}
-            className="text-gray-300 hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
+            className="text-gray-300 cursor-pointer hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
           >
             <List className="h-3 w-3" />
           </Button>
@@ -393,7 +389,7 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
             variant="ghost"
             size="sm"
             onClick={() => handleFormatting('orderedList')}
-            className="text-gray-300 hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
+            className="text-gray-300 cursor-pointer hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
           >
             <ListOrdered className="h-3 w-3" />
           </Button>
@@ -402,7 +398,7 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
             variant="ghost"
             size="sm"
             onClick={() => handleFormatting('link')}
-            className="text-gray-300 hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
+            className="text-gray-300 cursor-pointer hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
           >
             <Link className="h-3 w-3" />
           </Button>
@@ -411,7 +407,7 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
             variant="ghost"
             size="sm"
             onClick={() => handleFormatting('image')}
-            className="text-gray-300 hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
+            className="text-gray-300 cursor-pointer hover:text-white hover:bg-gray-700 h-6 w-6 p-0"
             title="Insert image"
           >
             <ImageIcon className="h-3 w-3" />
@@ -424,13 +420,13 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Ask a question about this lecture..."
-            className="bg-gray-800 border-gray-600 text-white text-sm min-h-[80px]"
+            className="bg-black border text-white text-sm min-h-[80px]"
           />
           <div className="flex justify-end">
             <Button 
               onClick={submitMessage}
               disabled={submitting || !newMessage.trim()}
-              className="bg-blue-600 hover:bg-blue-700 h-8 text-xs"
+              className="bg-white hover:bg-blue-700 h-8 text-xs"
             >
               <Send className="h-3 w-3 mr-1" />
               {submitting ? 'Posting...' : 'Post'}
@@ -440,11 +436,13 @@ export default function LectureDiscussion({ courseId, lectureId, userId }: Lectu
       </div>
 
       {/* Messages List - Chat-like layout */}
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 max-h-[400px] overflow-y-auto">
+      <div className="bg-black border p-3 max-h-[400px] overflow-y-auto">
         {loading ? (
-          <div className="text-center text-gray-400 py-6">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
-            <p className="text-xs">Loading discussion...</p>
+          <div className="text-center text-gray-400 py-6 space-y-3">
+            <div className="h-4 bg-accent rounded animate-pulse mx-auto max-w-xs"></div>
+            <div className="h-4 bg-accent rounded animate-pulse mx-auto max-w-sm"></div>
+            <div className="h-4 bg-accent rounded animate-pulse mx-auto max-w-md"></div>
+            <p className="text-xs mt-4">Loading discussion...</p>
           </div>
         ) : messages.filter(m => !m.parent_id).length > 0 ? (
           <div className="space-y-3">

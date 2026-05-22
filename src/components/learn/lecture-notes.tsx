@@ -59,8 +59,7 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
           setLastSaved(new Date(data.updated_at));
         }
       } catch (error) {
-        console.error('Error loading notes:', error);
-        toast.error('Failed to load your notes');
+toast.error('Failed to load your notes');
       } finally {
         setIsLoading(false);
       }
@@ -84,8 +83,7 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
       setSavedNotes(data || []);
       setShowNotesDialog(true);
     } catch (error) {
-      console.error('Error loading all notes:', error);
-      toast.error('Failed to load saved notes');
+toast.error('Failed to load saved notes');
     }
   };
 
@@ -114,8 +112,7 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
       setLastSaved(new Date());
       toast.success('Notes saved successfully!');
     } catch (error) {
-      console.error('Error saving notes:', error);
-      toast.error('Failed to save notes');
+toast.error('Failed to save notes');
     } finally {
       setIsSaving(false);
     }
@@ -138,8 +135,7 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
         setSelectedNote(null);
       }
     } catch (error) {
-      console.error('Error deleting note:', error);
-      toast.error('Failed to delete note');
+toast.error('Failed to delete note');
     }
   };
 
@@ -155,7 +151,7 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
 
   if (isLoading) {
     return (
-      <Card className="bg-gray-900 border-gray-700">
+      <Card className="bg-black border">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-white text-lg">
             <StickyNote className="w-5 h-5 text-yellow-500" />
@@ -163,8 +159,10 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          <div className="space-y-3">
+            <div className="h-4 bg-accent rounded animate-pulse"></div>
+            <div className="h-4 bg-accent rounded animate-pulse"></div>
+            <div className="h-4 bg-accent rounded animate-pulse"></div>
           </div>
         </CardContent>
       </Card>
@@ -172,7 +170,7 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
   }
 
   return (
-    <Card className="bg-gray-900 border-gray-700">
+    <Card className="bg-black border">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-white text-lg">
@@ -193,8 +191,8 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Start typing your notes here...&#10;&#10;• Key concepts&#10;• Important points&#10;• Questions to review&#10;• Personal insights"
-          className="min-h-[120px] bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 focus:border-yellow-500 focus:ring-yellow-500/20 resize-none"
+          placeholder="Start typing your notes here...&#10;&#10;"
+          className="min-h-[120px] bg-gray-800 border text-white placeholder:text-gray-500 focus:border-yellow-500 focus:ring-yellow-500/20 resize-none"
         />
         
         <Button
@@ -218,7 +216,7 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
         <Button
           onClick={loadAllNotes}
           variant="outline"
-          className="w-full border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
+          className="w-full border text-gray-300 hover:bg-gray-800 hover:text-white"
         >
           <BookOpen className="w-4 h-4 mr-2" />
           View All Saved Notes
@@ -230,7 +228,7 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
       </CardContent>
 
       <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-3xl max-h-[80vh]">
+        <DialogContent className="bg-black border text-white max-w-3xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-yellow-500" />
@@ -251,7 +249,7 @@ export default function LectureNotes({ courseId, lectureId, userId }: LectureNot
             ) : (
               <div className="space-y-3">
                 {savedNotes.map((note) => (
-                  <Card key={note.id} className="bg-gray-800 border-gray-700">
+                  <Card key={note.id} className="bg-black border">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <div className="flex-1">
